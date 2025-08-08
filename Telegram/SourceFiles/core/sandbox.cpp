@@ -82,6 +82,21 @@ bool Sandbox::QuitOnStartRequested = false;
 Sandbox::Sandbox(int &argc, char **argv)
 : QApplication(argc, argv)
 , _mainThreadId(QThread::currentThreadId()) {
+    connect(
+            this,
+            &QGuiApplication::screenAdded,
+            this,
+            [=](QScreen*) { setupScreenScale(); });
+    connect(
+            this,
+            &QGuiApplication::screenRemoved,
+            this,
+            [=](QScreen*) { setupScreenScale(); });
+    connect(
+            this,
+            &QGuiApplication::primaryScreenChanged,
+            this,
+            [=](QScreen*) { setupScreenScale(); });
 }
 
 int Sandbox::start() {
@@ -210,46 +225,58 @@ void Sandbox::launchApplication() {
 }
 
 void Sandbox::setupScreenScale() {
-	const auto ratio = devicePixelRatio();
-	LOG(("Global devicePixelRatio: %1").arg(ratio));
-	const auto logEnv = [](const char *name) {
-		const auto value = qEnvironmentVariable(name);
-		if (!value.isEmpty()) {
-			LOG(("%1: %2").arg(name, value));
-		}
-	};
-	logEnv("QT_DEVICE_PIXEL_RATIO");
-	logEnv("QT_AUTO_SCREEN_SCALE_FACTOR");
-	logEnv("QT_ENABLE_HIGHDPI_SCALING");
-	logEnv("QT_SCALE_FACTOR");
-	logEnv("QT_SCREEN_SCALE_FACTORS");
-	logEnv("QT_SCALE_FACTOR_ROUNDING_POLICY");
-	logEnv("QT_DPI_ADJUSTMENT_POLICY");
-	logEnv("QT_USE_PHYSICAL_DPI");
-	logEnv("QT_FONT_DPI");
+        const auto screen = Sandbox::primaryScreen();
+        if (!screen) {
+                return;
+        }
+        const auto ratio = screen->devicePixelRatio();
+        LOG(("Primary screen devicePixelRatio: %1").arg(ratio));
+        const auto previousRatio = style::DevicePixelRatio();
+        const auto previousScale = cScreenScale();
+        const auto logEnv = [](const char *name) {
+                const auto value = qEnvironmentVariable(name);
+                if (!value.isEmpty()) {
+                        LOG(("%1: %2").arg(name, value));
+                }
+        };
+        logEnv("QT_DEVICE_PIXEL_RATIO");
+        logEnv("QT_AUTO_SCREEN_SCALE_FACTOR");
+        logEnv("QT_ENABLE_HIGHDPI_SCALING");
+        logEnv("QT_SCALE_FACTOR");
+        logEnv("QT_SCREEN_SCALE_FACTORS");
+        logEnv("QT_SCALE_FACTOR_ROUNDING_POLICY");
+        logEnv("QT_DPI_ADJUSTMENT_POLICY");
+        logEnv("QT_USE_PHYSICAL_DPI");
+        logEnv("QT_FONT_DPI");
 
-	const auto useRatio = std::clamp(qCeil(ratio), 1, 3);
-	style::SetDevicePixelRatio(useRatio);
+        const auto useRatio = std::clamp(qCeil(ratio), 1, 3);
+        style::SetDevicePixelRatio(useRatio);
 
-	const auto screen = Sandbox::primaryScreen();
-	const auto dpi = screen->logicalDotsPerInch();
-	const auto basePair = screen->handle()->logicalBaseDpi();
-	const auto base = (basePair.first + basePair.second) * 0.5;
-	const auto screenScaleExact = dpi / base;
-	const auto screenScale = int(base::SafeRound(screenScaleExact * 20)) * 5;
-	LOG(("Primary screen DPI: %1, Base: %2.").arg(dpi).arg(base));
-	LOG(("Computed screen scale: %1").arg(screenScale));
-	if (Platform::IsMac()) {
-		// 110% for Retina screens by default.
-		cSetScreenScale((useRatio == 2) ? 110 : style::kScaleDefault);
-	} else {
-		cSetScreenScale(std::clamp(
-			screenScale,
-			style::kScaleMin,
-			style::MaxScaleForRatio(useRatio)));
-	}
-	LOG(("DevicePixelRatio: %1").arg(useRatio));
-	LOG(("ScreenScale: %1").arg(cScreenScale()));
+        const auto dpi = screen->logicalDotsPerInch();
+        const auto basePair = screen->handle()->logicalBaseDpi();
+        const auto base = (basePair.first + basePair.second) * 0.5;
+        const auto screenScaleExact = dpi / base;
+        const auto screenScale = int(base::SafeRound(screenScaleExact * 20)) * 5;
+        LOG(("Primary screen DPI: %1, Base: %2.").arg(dpi).arg(base));
+        LOG(("Computed screen scale: %1").arg(screenScale));
+        if (Platform::IsMac()) {
+                // 110% for Retina screens by default.
+                cSetScreenScale((useRatio == 2) ? 110 : style::kScaleDefault);
+        } else {
+                cSetScreenScale(std::clamp(
+                        screenScale,
+                        style::kScaleMin,
+                        style::MaxScaleForRatio(useRatio)));
+        }
+        LOG(("DevicePixelRatio: %1").arg(useRatio));
+        LOG(("ScreenScale: %1").arg(cScreenScale()));
+        if (useRatio != previousRatio || cScreenScale() != previousScale) {
+                const auto widgets = QApplication::topLevelWidgets();
+                for (const auto widget : widgets) {
+                        widget->update();
+                }
+                _widgetUpdateRequests.fire({});
+        }
 }
 
 Sandbox::~Sandbox() = default;
