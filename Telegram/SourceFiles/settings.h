@@ -69,7 +69,6 @@ inline QString cDialogHelperPathFinal() {
 	return cDialogHelperPath().isEmpty() ? cExeDir() : cDialogHelperPath();
 }
 
-DeclareSetting(bool, AutoUpdate);
 
 DeclareSetting(bool, SeenTrayTooltip);
 DeclareSetting(bool, RestartingUpdate);

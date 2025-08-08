@@ -6,6 +6,7 @@ For license and copyright information please follow this link:
 https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "settings/settings_advanced.h"
+#include "settings_manager.h"
 
 #include "api/api_global_privacy.h"
 #include "apiwrap.h"
@@ -187,16 +188,16 @@ void SetupUpdate(not_null<Ui::VerticalLayout*> container) {
 		}
 	};
 
-	toggle->toggleOn(rpl::single(cAutoUpdate()));
+	toggle->toggleOn(rpl::single(SettingsManager::instance().autoUpdate()));
 	toggle->toggledValue(
 	) | rpl::filter([](bool toggled) {
-		return (toggled != cAutoUpdate());
+		return (toggled != SettingsManager::instance().autoUpdate());
 	}) | rpl::start_with_next([=](bool toggled) {
-		cSetAutoUpdate(toggled);
+		SettingsManager::instance().setAutoUpdate(toggled);
 
 		Local::writeSettings();
 		Core::UpdateChecker checker;
-		if (cAutoUpdate()) {
+		if (SettingsManager::instance().autoUpdate()) {
 			checker.start();
 		} else {
 			checker.stop();
@@ -998,7 +999,7 @@ void Advanced::setupContent(not_null<Window::SessionController*> controller) {
 			AddSkip(content);
 		}
 	};
-	if (!cAutoUpdate()) {
+	if (!SettingsManager::instance().autoUpdate()) {
 		addUpdate();
 	}
 	addDivider();
@@ -1022,7 +1023,7 @@ void Advanced::setupContent(not_null<Window::SessionController*> controller) {
 		AddSkip(content);
 	}
 
-	if (cAutoUpdate()) {
+	if (SettingsManager::instance().autoUpdate()) {
 		addUpdate();
 	}
 

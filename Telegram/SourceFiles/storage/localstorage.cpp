@@ -21,6 +21,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "core/file_location.h"
 #include "core/application.h"
 #include "core/core_settings.h"
+#include "settings/settings_manager.h"
 #include "media/audio/media_audio.h"
 #include "mtproto/mtproto_config.h"
 #include "mtproto/mtproto_dc_options.h"
@@ -480,7 +481,7 @@ void writeSettings() {
 	data.stream << quint32(dbiStartMinimized) << qint32(cStartMinimized());
 	data.stream << quint32(dbiSendToMenu) << qint32(cSendToMenu());
 	data.stream << quint32(dbiSeenTrayTooltip) << qint32(cSeenTrayTooltip());
-	data.stream << quint32(dbiAutoUpdate) << qint32(cAutoUpdate());
+	data.stream << quint32(dbiAutoUpdate) << qint32(SettingsManager::instance().autoUpdate());
 	data.stream << quint32(dbiLastUpdateCheck) << qint32(cLastUpdateCheck());
 	data.stream << quint32(dbiScalePercent) << qint32(cConfigScale());
 	data.stream << quint32(dbiFallbackProductionConfig) << configSerialized;
@@ -569,7 +570,7 @@ void writeAutoupdatePrefix(const QString &prefix) {
 			f.write(prefix.toUtf8());
 			f.close();
 		}
-		if (cAutoUpdate()) {
+		if (SettingsManager::instance().autoUpdate()) {
 			Core::UpdateChecker checker;
 			checker.start();
 		}
