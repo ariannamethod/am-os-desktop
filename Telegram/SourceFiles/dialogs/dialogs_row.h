@@ -197,11 +197,12 @@ private:
 
 	Key _id;
 	mutable std::unique_ptr<CornerBadgeUserpic> _cornerBadgeUserpic;
-	int _top = 0;
-	int _height = 0;
-	uint32 _index : 30 = 0;
-	uint32 _cornerBadgeShown : 1 = 0;
-	uint32 _topicJumpRipple : 1 = 0;
+        int _top = 0;
+        int _height = 0;
+        uint32 _index : 30 = 0;
+        uint32 _cornerBadgeShown : 1 = 0;
+        uint32 _topicJumpRipple : 1 = 0;
+        uint32 _peerWasActive : 1 = 0;
 
 };
 
