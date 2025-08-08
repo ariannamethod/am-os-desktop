@@ -1,12 +1,12 @@
-#include "../Telegram/SourceFiles/settings/settings_manager.h"
+#include "../Telegram/SourceFiles/settings.h"
 #include <cassert>
 
 int main() {
-    auto &manager = SettingsManager::instance();
-    manager.setAutoUpdate(true);
-    auto data = manager.serialize();
-    manager.setAutoUpdate(false);
-    manager.deserialize(data);
-    assert(manager.autoUpdate() == true);
-    return 0;
+  cSetAutoStart(true);
+  assert(cAutoStart() == true);
+  cSetAutoStart(false);
+  assert(cAutoStart() == false);
+  cSetStartUrl(QString::fromLatin1("test"));
+  assert(cStartUrl() == QString::fromLatin1("test"));
+  return 0;
 }
