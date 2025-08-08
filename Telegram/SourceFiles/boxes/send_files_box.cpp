@@ -65,7 +65,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 namespace {
 
-constexpr auto kMaxMessageLength = 4096;
+// Allow composing long captions up to the global message limit.
+constexpr auto kMaxMessageLength = MaxMessageSize;
 
 using Ui::SendFilesWay;
 
