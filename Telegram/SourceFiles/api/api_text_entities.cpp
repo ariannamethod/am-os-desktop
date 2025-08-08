@@ -195,20 +195,24 @@ EntitiesInText EntitiesFromMTP(
 				d.voffset().v,
 				d.vlength().v,
 			});
-		}, [&](const MTPDmessageEntityStrike &d) {
-			result.push_back({
-				EntityType::StrikeOut,
-				d.voffset().v,
-				d.vlength().v,
-			});
-		}, [&](const MTPDmessageEntityBankCard &d) {
-			// Skipping cards. // #TODO entities
-		}, [&](const MTPDmessageEntitySpoiler &d) {
-			result.push_back({
-				EntityType::Spoiler,
-				d.voffset().v,
-				d.vlength().v,
-			});
+               }, [&](const MTPDmessageEntityStrike &d) {
+                       result.push_back({
+                               EntityType::StrikeOut,
+                               d.voffset().v,
+                               d.vlength().v,
+                       });
+               }, [&](const MTPDmessageEntityBankCard &d) {
+                       result.push_back({
+                               EntityType::BankCard,
+                               d.voffset().v,
+                               d.vlength().v,
+                       });
+               }, [&](const MTPDmessageEntitySpoiler &d) {
+                       result.push_back({
+                               EntityType::Spoiler,
+                               d.voffset().v,
+                               d.vlength().v,
+                       });
 		}, [&](const MTPDmessageEntityCustomEmoji &d) {
 			result.push_back({
 				EntityType::CustomEmoji,
@@ -238,21 +242,20 @@ MTPVector<MTPMessageEntity> EntitiesToMTP(
 		if (entity.length() <= 0) {
 			continue;
 		}
-		if (option == ConvertOption::SkipLocal
-			&& entity.type() != EntityType::Bold
-			//&& entity.type() != EntityType::Semibold // Not in API.
-			&& entity.type() != EntityType::Italic
-			&& entity.type() != EntityType::Underline
-			&& entity.type() != EntityType::StrikeOut
-			&& entity.type() != EntityType::Code // #TODO entities
-			&& entity.type() != EntityType::Pre
-			&& entity.type() != EntityType::Blockquote
-			&& entity.type() != EntityType::Spoiler
-			&& entity.type() != EntityType::MentionName
-			&& entity.type() != EntityType::CustomUrl
-			&& entity.type() != EntityType::CustomEmoji) {
-			continue;
-		}
+               if (option == ConvertOption::SkipLocal
+                       && entity.type() != EntityType::Bold
+                       //&& entity.type() != EntityType::Semibold // Not in API.
+                       && entity.type() != EntityType::Italic
+                       && entity.type() != EntityType::Underline
+                       && entity.type() != EntityType::StrikeOut
+                       && entity.type() != EntityType::Pre
+                       && entity.type() != EntityType::Blockquote
+                       && entity.type() != EntityType::Spoiler
+                       && entity.type() != EntityType::MentionName
+                       && entity.type() != EntityType::CustomUrl
+                       && entity.type() != EntityType::CustomEmoji) {
+                       continue;
+               }
 
 		auto offset = MTP_int(entity.offset());
 		auto length = MTP_int(entity.length());
@@ -301,26 +304,28 @@ MTPVector<MTPMessageEntity> EntitiesToMTP(
 		case EntityType::Italic: {
 			v.push_back(MTP_messageEntityItalic(offset, length));
 		} break;
-		case EntityType::Underline: {
-			v.push_back(MTP_messageEntityUnderline(offset, length));
-		} break;
-		case EntityType::StrikeOut: {
-			v.push_back(MTP_messageEntityStrike(offset, length));
-		} break;
-		case EntityType::Code: {
-			// #TODO entities.
-			v.push_back(MTP_messageEntityCode(offset, length));
-		} break;
-		case EntityType::Pre: {
-			v.push_back(
-				MTP_messageEntityPre(
-					offset,
-					length,
-					MTP_string(entity.data())));
-		} break;
-		case EntityType::Blockquote: {
-			using Flag = MTPDmessageEntityBlockquote::Flag;
-			const auto collapsed = !entity.data().isEmpty();
+               case EntityType::Underline: {
+                       v.push_back(MTP_messageEntityUnderline(offset, length));
+               } break;
+               case EntityType::StrikeOut: {
+                       v.push_back(MTP_messageEntityStrike(offset, length));
+               } break;
+               case EntityType::Code: {
+                       v.push_back(MTP_messageEntityCode(offset, length));
+               } break;
+               case EntityType::Pre: {
+                       v.push_back(
+                               MTP_messageEntityPre(
+                                       offset,
+                                       length,
+                                       MTP_string(entity.data())));
+               } break;
+               case EntityType::BankCard: {
+                       v.push_back(MTP_messageEntityBankCard(offset, length));
+               } break;
+               case EntityType::Blockquote: {
+                       using Flag = MTPDmessageEntityBlockquote::Flag;
+                       const auto collapsed = !entity.data().isEmpty();
 			v.push_back(
 				MTP_messageEntityBlockquote(
 					MTP_flags(collapsed ? Flag::f_collapsed : Flag()),
