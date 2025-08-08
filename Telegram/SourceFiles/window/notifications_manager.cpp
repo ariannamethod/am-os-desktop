@@ -40,6 +40,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/text/text_utilities.h"
 
 #include <QtGui/QWindow>
+#include <utility>
 
 #if __has_include(<gio/gio.hpp>)
 #include <gio/gio.hpp>
@@ -136,11 +137,14 @@ struct CachedUserpicView {
        rpl::lifetime lifetime;
 };
 
-base::flat_map<PeerId, CachedUserpicView> g_userpicViews;
+using PeerTopicKey = std::pair<PeerId, MsgId>;
+
+base::flat_map<PeerTopicKey, CachedUserpicView> g_userpicViews;
 
 [[nodiscard]] std::shared_ptr<Ui::PeerUserpicView> LookupUserpicView(
-               not_null<PeerData*> peer) {
-       const auto key = peer->id;
+               not_null<PeerData*> peer,
+               MsgId topicRootId) {
+       const auto key = PeerTopicKey{ peer->id, topicRootId };
        if (const auto it = g_userpicViews.find(key); it != end(g_userpicViews)) {
                return it->second.view;
        }
@@ -156,11 +160,29 @@ base::flat_map<PeerId, CachedUserpicView> g_userpicViews;
                        *strong = peer->createUserpicView();
                }
        }, data.lifetime);
+       if (const auto topic = peer->forumTopicFor(topicRootId)) {
+               peer->session().changes().topicUpdates(
+                       topic,
+                       Data::TopicUpdate::Flag::IconId
+                               | Data::TopicUpdate::Flag::ColorId
+                               | Data::TopicUpdate::Flag::Title
+               ) | rpl::start_with_next([weak = std::weak_ptr(view), peer](Data::TopicUpdate) {
+                       if (auto strong = weak.lock()) {
+                               *strong = peer->createUserpicView();
+                       }
+               }, data.lifetime);
+       }
        return view;
 }
 
 void ReleaseUserpicView(PeerId peerId) {
-       g_userpicViews.remove(peerId);
+       for (auto i = g_userpicViews.begin(); i != g_userpicViews.end();) {
+               if (i->first.first == peerId) {
+                       i = g_userpicViews.erase(i);
+               } else {
+                       ++i;
+               }
+       }
 }
 
 void ReleaseUserpicViews(not_null<Main::Session*> session) {
@@ -1261,7 +1283,9 @@ void NativeManager::doShowNotification(NotificationFields &&fields) {
 			})),
 			(fields.forwardedCount == 1));
 
-       auto userpicView = LookupUserpicView(item->history()->peer);
+       auto userpicView = LookupUserpicView(
+               item->history()->peer,
+               item->topicRootId());
        doShowNativeNotification(
                item->history()->peer,
                item->topicRootId(),
