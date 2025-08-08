@@ -25,7 +25,10 @@ enum {
 
 	SearchPeopleLimit = 5,
 
-	MaxMessageSize = 4096,
+// Maximum allowed message size in characters for composing locally.
+MaxMessageSize = 120000,
+// Maximum message size per batch when sending to the server.
+MaxMessageBatch = 4096,
 
 	WebPageUserId = 701000,
 

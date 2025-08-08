@@ -91,11 +91,8 @@ History::History(not_null<Data::Session*> owner, PeerId peerId)
 , _sendActionPainter(this) {
 	Thread::setMuted(owner->notifySettings().isMuted(peer));
 
-	if (const auto user = peer->asUser()) {
-		if (user->isBot()) {
-			_outboxReadBefore = std::numeric_limits<MsgId>::max();
-		}
-	}
+// Bots should be treated like regular participants and
+// should not mark all outgoing messages as read automatically.
 }
 
 History::~History() = default;

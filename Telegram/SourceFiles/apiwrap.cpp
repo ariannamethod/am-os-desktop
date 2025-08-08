@@ -3725,8 +3725,8 @@ void ApiWrap::sendMessage(MessageToSend &&message) {
 
 	const auto exactWebPage = !message.webPage.url.isEmpty();
 	auto isFirst = true;
-	while (TextUtilities::CutPart(sending, left, MaxMessageSize)
-		|| (isFirst && exactWebPage)) {
+while (TextUtilities::CutPart(sending, left, MaxMessageBatch)
+|| (isFirst && exactWebPage)) {
 		TextUtilities::Trim(left);
 		const auto isLast = left.empty();
 

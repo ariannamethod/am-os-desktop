@@ -4587,7 +4587,7 @@ void Session::insertCheckedServiceNotification(
 	const auto localFlags = MessageFlag::ClientSideUnread
 		| MessageFlag::Local;
 	auto sending = TextWithEntities(), left = message;
-	while (TextUtilities::CutPart(sending, left, MaxMessageSize)) {
+while (TextUtilities::CutPart(sending, left, MaxMessageBatch)) {
 		const auto id = nextLocalMessageId();
 		addNewMessage(
 			id,
