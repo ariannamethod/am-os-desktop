@@ -29,6 +29,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/widgets/checkbox.h"
 #include "ui/widgets/color_editor.h"
 #include "ui/widgets/buttons.h"
+#include "ui/color_contrast.h"
 #include "ui/chat/attach/attach_extensions.h"
 #include "ui/chat/chat_style.h"
 #include "ui/chat/chat_theme.h"
@@ -56,6 +57,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "core/file_utilities.h"
 #include "core/application.h"
+#include "core/utils.h"
 #include "data/data_session.h"
 #include "data/data_cloud_themes.h"
 #include "data/data_file_origin.h"
@@ -1434,26 +1436,32 @@ void SetupDefaultThemes(
 	}, block->lifetime());
 
 	palette->selected(
-	) | rpl::start_with_next([=](QColor color) {
-		if (Background()->editingTheme()) {
-			// We don't remember old accent color to revert it properly
-			// in Window::Theme::Revert which is called by Editor.
-			//
-			// So we check here, before we change the saved accent color.
-			window->show(Ui::MakeInformBox(
-				tr::lng_theme_editor_cant_change_theme()));
-			return;
-		}
-		const auto type = chosen();
-		const auto scheme = ranges::find(kSchemesList, type, &Scheme::type);
-		if (scheme == end(kSchemesList)) {
-			return;
-		}
-		auto &colors = Core::App().settings().themesAccentColors();
-		if (colors.get(type) != color) {
-			colors.set(type, color);
-			Local::writeSettings();
-		}
+        ) | rpl::start_with_next([=](QColor color) {
+                if (Background()->editingTheme()) {
+                        // We don't remember old accent color to revert it properly
+                        // in Window::Theme::Revert which is called by Editor.
+                        //
+                        // So we check here, before we change the saved accent color.
+                        window->show(Ui::MakeInformBox(
+                                tr::lng_theme_editor_cant_change_theme()));
+                        return;
+                }
+                const auto type = chosen();
+                const auto scheme = ranges::find(kSchemesList, type, &Scheme::type);
+                if (scheme == end(kSchemesList)) {
+                        return;
+                }
+               constexpr auto kMinAcceptableContrast = 4.5;
+               const auto contrast = Ui::CountContrast(color, scheme->background);
+               if (contrast < kMinAcceptableContrast) {
+                       Ui::Toast::Show(qsl("Low contrast color"));
+                       return;
+               }
+                auto &colors = Core::App().settings().themesAccentColors();
+                if (colors.get(type) != color) {
+                        colors.set(type, color);
+                        Local::writeSettings();
+                }
 		apply(*scheme);
 	}, container->lifetime());
 
