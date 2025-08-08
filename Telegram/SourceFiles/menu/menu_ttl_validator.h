@@ -10,6 +10,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "menu/menu_ttl.h"
 
 class PeerData;
+namespace Data {
+class ForumTopic;
+} // namespace Data
 
 namespace Ui {
 class Show;
@@ -19,20 +22,20 @@ namespace TTLMenu {
 
 class TTLValidator final {
 public:
-	TTLValidator(
-		std::shared_ptr<Ui::Show> show,
-		not_null<PeerData*> peer);
+  TTLValidator(std::shared_ptr<Ui::Show> show, not_null<PeerData *> peer);
+  TTLValidator(std::shared_ptr<Ui::Show> show,
+               not_null<Data::ForumTopic *> topic);
 
-	void showBox() const;
-	[[nodiscard]] bool can() const;
-	[[nodiscard]] Args createArgs() const;
-	void showToast() const;
-	const style::icon *icon() const;
+  void showBox() const;
+  [[nodiscard]] bool can() const;
+  [[nodiscard]] Args createArgs() const;
+  void showToast() const;
+  const style::icon *icon() const;
 
 private:
-	const not_null<PeerData*> _peer;
-	const std::shared_ptr<Ui::Show> _show;
-
+  const not_null<PeerData *> _peer;
+  Data::ForumTopic *_topic = nullptr;
+  const std::shared_ptr<Ui::Show> _show;
 };
 
 } // namespace TTLMenu
