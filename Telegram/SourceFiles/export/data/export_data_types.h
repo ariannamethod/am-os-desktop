@@ -209,11 +209,36 @@ struct Poll {
 	bool closed = false;
 };
 
+struct Dice {
+        Utf8String emoji;
+        int value = 0;
+};
+
+struct StoryReference {
+        PeerId peerId = 0;
+        int id = 0;
+        bool viaMention = false;
+};
+
 struct GiveawayStart {
-	std::vector<ChannelId> channels;
-	TimeId untilDate = 0;
-	int quantity = 0;
-	int months = 0;
+        std::vector<ChannelId> channels;
+        TimeId untilDate = 0;
+        int quantity = 0;
+        int months = 0;
+};
+
+struct GiveawayResults {
+        ChannelId channelId = 0;
+        std::vector<UserId> winners;
+        Utf8String prizeDescription;
+        TimeId untilDate = 0;
+        int launchId = 0;
+        int additionalPeersCount = 0;
+        int winnersCount = 0;
+        int unclaimedCount = 0;
+        int months = 0;
+        bool refunded = false;
+        bool all = true;
 };
 
 struct UserpicsSlice {
@@ -345,12 +370,15 @@ struct Media {
 		SharedContact,
 		GeoPoint,
 		Venue,
-		Game,
-		Invoice,
-		Poll,
-		GiveawayStart,
-		PaidMedia,
-		UnsupportedMedia> content;
+                Game,
+                Invoice,
+                Poll,
+                Dice,
+                StoryReference,
+                GiveawayStart,
+                GiveawayResults,
+                PaidMedia,
+                UnsupportedMedia> content;
 	TimeId ttl = 0;
 
 	File &file();
@@ -542,13 +570,19 @@ struct ActionTopicEdit {
 };
 
 struct ActionSuggestProfilePhoto {
-	Photo photo;
+        Photo photo;
+};
+
+struct WallPaper {
+        uint64 id = 0;
+        Utf8String slug;
+        Document document;
 };
 
 struct ActionSetChatWallPaper {
-	bool same = false;
-	bool both = false;
-	// #TODO wallpapers
+        bool same = false;
+        bool both = false;
+        WallPaper paper;
 };
 
 struct ActionGiftCode {
