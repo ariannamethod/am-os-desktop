@@ -1069,46 +1069,36 @@ void InnerWidget::paintPeerSearchResult(
 		not_null<const PeerSearchResult*> result,
 		const Ui::PaintContext &context) {
 	QRect fullRect(0, 0, context.width, st::dialogsRowHeight);
-	p.fillRect(
-		fullRect,
-		(context.active
-			? st::dialogsBgActive
-			: context.selected
-			? st::dialogsBgOver
-			: currentBg()));
-	if (!context.active) {
-		result->row.paintRipple(p, 0, 0, context.width);
-	}
+        p.fillRect(fullRect, (context.active     ? st::dialogsBgActive
+                              : context.selected ? st::dialogsBgOver
+                                                 : currentBg()));
+        if (!context.active) {
+          result->row.paintRipple(p, 0, 0, context.width);
+        }
 
-	auto peer = result->peer;
-	auto userpicPeer = (peer->migrateTo() ? peer->migrateTo() : peer);
-	userpicPeer->paintUserpicLeft(
-		p,
-		result->row.userpicView(),
-		context.st->padding.left(),
-		context.st->padding.top(),
-		width(),
-		context.st->photoSize);
+        auto peer = result->peer;
+        auto userpicPeer = (peer->migrateTo() ? peer->migrateTo() : peer);
+        userpicPeer->paintUserpicLeft(
+            p, result->row.userpicView(), context.st->padding.left(),
+            context.st->padding.top(), width(), context.st->photoSize);
 
-	auto nameleft = context.st->nameLeft;
-	auto namewidth = context.width - nameleft - context.st->padding.right();
-	QRect rectForName(nameleft, context.st->nameTop, namewidth, st::semiboldFont->height);
+        auto nameleft = context.st->nameLeft;
+        auto namewidth = context.width - nameleft - context.st->padding.right();
+        QRect rectForName(nameleft, context.st->nameTop, namewidth,
+                          st::semiboldFont->height);
 
-	if (result->name.isEmpty()) {
-		result->name.setText(
-			st::semiboldTextStyle,
-			peer->name(),
-			Ui::NameTextOptions());
-	}
+        if (result->name.isEmpty()) {
+          result->name.setText(st::semiboldTextStyle, peer->name(),
+                               Ui::NameTextOptions());
+        }
 
-	// draw chat icon
-	if (const auto chatTypeIcon = Ui::ChatTypeIcon(peer, context)) {
-		chatTypeIcon->paint(p, rectForName.topLeft(), context.width);
-		rectForName.setLeft(rectForName.left()
-			+ chatTypeIcon->width()
-			+ st::dialogsChatTypeSkip);
-	}
-	const auto badgeWidth = result->badge.drawGetWidth(
+        // draw chat icon
+        if (const auto chatTypeIcon = Ui::ChatTypeIcon(peer, context)) {
+          chatTypeIcon->paint(p, rectForName.topLeft(), context.width);
+          rectForName.setLeft(rectForName.left() + chatTypeIcon->width() +
+                              st::dialogsChatTypeSkip);
+        }
+        const auto badgeWidth = result->badge.drawGetWidth(
 		p,
 		rectForName,
 		result->name.maxWidth(),
@@ -1140,15 +1130,24 @@ void InnerWidget::paintPeerSearchResult(
 		});
 	rectForName.setWidth(rectForName.width() - badgeWidth);
 
-	QRect tr(context.st->textLeft, context.st->textTop, namewidth, st::dialogsTextFont->height);
-	p.setFont(st::dialogsTextFont);
-	QString username = peer->username();
-	if (!context.active && username.startsWith(_peerSearchQuery, Qt::CaseInsensitive)) {
-		auto first = '@' + username.mid(0, _peerSearchQuery.size());
-		auto second = username.mid(_peerSearchQuery.size());
-		auto w = st::dialogsTextFont->width(first);
-		if (w >= tr.width()) {
-			p.setPen(st::dialogsTextFgService);
+       QRect tr(context.st->textLeft, context.st->textTop, namewidth, st::dialogsTextFont->height);
+       p.setFont(st::dialogsTextFont);
+       const auto &usernames = peer->usernames();
+       auto username = usernames.empty() ? QString() : usernames.front();
+       if (!context.active) {
+               for (const auto &u : usernames) {
+                       if (u.startsWith(_peerSearchQuery, Qt::CaseInsensitive)) {
+                               username = u;
+                               break;
+                       }
+               }
+       }
+       if (!context.active && username.startsWith(_peerSearchQuery, Qt::CaseInsensitive)) {
+               auto first = '@' + username.mid(0, _peerSearchQuery.size());
+               auto second = username.mid(_peerSearchQuery.size());
+               auto w = st::dialogsTextFont->width(first);
+               if (w >= tr.width()) {
+                       p.setPen(st::dialogsTextFgService);
 			p.drawText(tr.left(), tr.top() + st::dialogsTextFont->ascent, st::dialogsTextFont->elided(first, tr.width()));
 		} else {
 			p.setPen(st::dialogsTextFgService);
