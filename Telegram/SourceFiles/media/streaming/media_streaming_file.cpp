@@ -256,19 +256,18 @@ void File::Context::seekToPosition(
 	return logFatal(qstr("av_seek_frame"), error);
 }
 
-std::variant<FFmpeg::Packet, FFmpeg::AvErrorWrap> File::Context::readPacket() {
-	auto error = FFmpeg::AvErrorWrap();
-
-	auto result = FFmpeg::Packet();
-	error = av_read_frame(_format.get(), &result.fields());
-	if (unroll()) {
-		return FFmpeg::AvErrorWrap();
-	} else if (!error) {
-		return result;
-	} else if (error.code() != AVERROR_EOF) {
-		logFatal(qstr("av_read_frame"), error);
-	}
-	return error;
+base::expected<FFmpeg::Packet, FFmpeg::AvErrorWrap> File::Context::readPacket() {
+       auto packet = FFmpeg::Packet();
+       auto error = FFmpeg::AvErrorWrap(
+               av_read_frame(_format.get(), &packet.fields()));
+       if (unroll()) {
+               return base::unexpected(FFmpeg::AvErrorWrap());
+       } else if (!error) {
+               return packet;
+       } else if (error.code() != AVERROR_EOF) {
+               logFatal(qstr("av_read_frame"), error);
+       }
+       return base::unexpected(error);
 }
 
 void File::Context::start(StartOptions options) {
@@ -351,29 +350,29 @@ void File::Context::sendFullInCache(bool force) {
 }
 
 void File::Context::readNextPacket() {
-	auto result = readPacket();
-	if (unroll()) {
-		return;
-	} else if (const auto packet = std::get_if<FFmpeg::Packet>(&result)) {
-		const auto index = packet->fields().stream_index;
-		const auto i = _queuedPackets.find(index);
-		if (i == end(_queuedPackets)) {
-			return;
-		}
-		i->second.push_back(std::move(*packet));
-		if (i->second.size() == kMaxQueuedPackets) {
-			processQueuedPackets(SleepPolicy::Allowed);
-		}
-		Assert(i->second.size() < kMaxQueuedPackets);
-	} else {
-		// Still trying to read by drain.
-		Assert(v::is<FFmpeg::AvErrorWrap>(result));
-		Assert(v::get<FFmpeg::AvErrorWrap>(result).code() == AVERROR_EOF);
-		processQueuedPackets(SleepPolicy::Allowed);
-		if (!finished()) {
-			handleEndOfFile();
-		}
-	}
+       auto result = readPacket();
+       if (unroll()) {
+               return;
+       } else if (result.has_value()) {
+               auto packet = std::move(result.value());
+               const auto index = packet.fields().stream_index;
+               const auto i = _queuedPackets.find(index);
+               if (i == end(_queuedPackets)) {
+                       return;
+               }
+               i->second.push_back(std::move(packet));
+               if (i->second.size() == kMaxQueuedPackets) {
+                       processQueuedPackets(SleepPolicy::Allowed);
+               }
+               Assert(i->second.size() < kMaxQueuedPackets);
+       } else {
+               // Still trying to read by drain.
+               Assert(result.error().code() == AVERROR_EOF);
+               processQueuedPackets(SleepPolicy::Allowed);
+               if (!finished()) {
+                       handleEndOfFile();
+               }
+       }
 }
 
 void File::Context::handleEndOfFile() {
