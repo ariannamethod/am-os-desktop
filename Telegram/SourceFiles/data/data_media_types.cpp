@@ -2254,50 +2254,53 @@ ClickHandlerPtr MediaDice::makeHandler() const {
 ClickHandlerPtr MediaDice::MakeHandler(
 		not_null<History*> history,
 		const QString &emoji) {
-	// TODO support multi-windows.
-	static auto ShownToast = base::weak_ptr<Ui::Toast::Instance>();
-	static const auto HideExisting = [] {
-		if (const auto toast = ShownToast.get()) {
-			toast->hideAnimated();
-			ShownToast = nullptr;
-		}
-	};
-	return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
-		auto config = Ui::Toast::Config{
-			.text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
-			.st = &st::historyDiceToast,
-			.duration = Ui::Toast::kDefaultDuration * 2,
-		};
-		if (CanSend(history->peer, ChatRestriction::SendOther)) {
-			auto link = Ui::Text::Link(tr::lng_about_random_send(tr::now));
-			link.entities.push_back(
-				EntityInText(EntityType::Semibold, 0, link.text.size()));
-			config.text.append(' ').append(std::move(link));
-			config.filter = crl::guard(&history->session(), [=](
-					const ClickHandlerPtr &handler,
-					Qt::MouseButton button) {
-				if (button == Qt::LeftButton && !ShownToast.empty()) {
-					auto message = Api::MessageToSend(
-						Api::SendAction(history));
-					message.action.clearDraft = false;
-					message.textWithTags.text = emoji;
+       static auto ShownToast = base::flat_map<Window::SessionController*, base::weak_ptr<Ui::Toast::Instance>>();
+       static const auto HideExisting = [](Window::SessionController *window) {
+               const auto i = ShownToast.find(window);
+               if (i != end(ShownToast)) {
+                       if (const auto toast = i->second.get()) {
+                               toast->hideAnimated();
+                       }
+                       ShownToast.erase(i);
+               }
+       };
+       return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+               const auto my = context.other.value<ClickHandlerContext>();
+               const auto weak = my.sessionWindow;
+               auto window = weak.get();
+               auto config = Ui::Toast::Config{
+                       .text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
+                       .st = &st::historyDiceToast,
+                       .duration = Ui::Toast::kDefaultDuration * 2,
+               };
+               if (CanSend(history->peer, ChatRestriction::SendOther)) {
+                       auto link = Ui::Text::Link(tr::lng_about_random_send(tr::now));
+                       link.entities.push_back(
+                               EntityInText(EntityType::Semibold, 0, link.text.size()));
+                       config.text.append(' ').append(std::move(link));
+                       config.filter = crl::guard(&history->session(), [=](
+                                       const ClickHandlerPtr &handler,
+                                       Qt::MouseButton button) {
+                               if (button == Qt::LeftButton && ShownToast.find(window) != end(ShownToast)) {
+                                       auto message = Api::MessageToSend(
+                                               Api::SendAction(history));
+                                       message.action.clearDraft = false;
+                                       message.textWithTags.text = emoji;
 
-					Api::SendDice(message);
-					HideExisting();
-				}
-				return false;
-			});
-		}
+                                       Api::SendDice(message);
+                                       HideExisting(window);
+                               }
+                               return false;
+                       });
+               }
 
-		HideExisting();
-		const auto my = context.other.value<ClickHandlerContext>();
-		const auto weak = my.sessionWindow;
-		if (const auto strong = weak.get()) {
-			ShownToast = strong->showToast(std::move(config));
-		} else {
-			ShownToast = Ui::Toast::Show(std::move(config));
-		}
-	});
+               HideExisting(window);
+               if (window) {
+                       ShownToast[window] = window->showToast(std::move(config));
+               } else {
+                       ShownToast[nullptr] = Ui::Toast::Show(std::move(config));
+               }
+       });
 }
 
 MediaGiftBox::MediaGiftBox(
