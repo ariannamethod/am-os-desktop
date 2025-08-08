@@ -385,21 +385,22 @@ void Stickers::applyArchivedResult(
 		}
 		session().api().requestStickerSets();
 	}
-	if (stickersCount) {
-		session().local().writeInstalledStickers();
-		session().local().writeArchivedStickers();
-	}
-	if (masksCount) {
-		session().local().writeInstalledMasks();
-		session().local().writeArchivedMasks();
-	}
-
-        crl::on_main([] {
-                Ui::Toast::Show(Ui::Toast::Config{
-                        .text = { tr::lng_stickers_packs_archived(tr::now) },
-                        .st = &st::stickersToast,
-                });
-        });
+       crl::async([=] {
+               if (stickersCount) {
+                       session().local().writeInstalledStickers();
+                       session().local().writeArchivedStickers();
+               }
+               if (masksCount) {
+                       session().local().writeInstalledMasks();
+                       session().local().writeArchivedMasks();
+               }
+               crl::on_main([] {
+                       Ui::Toast::Show(Ui::Toast::Config{
+                               .text = { tr::lng_stickers_packs_archived(tr::now) },
+                               .st = &st::stickersToast,
+                       });
+               });
+       });
 	//Ui::show(
 	//	Box<StickersBox>(archived, &session()),
 	//	Ui::LayerOption::KeepOther);
