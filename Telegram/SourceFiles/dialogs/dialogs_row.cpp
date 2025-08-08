@@ -459,23 +459,27 @@ void Row::PaintCornerBadgeFrame(
 		Ui::PaintOutlineSegments(q, outline, segments);
 	}
 
-	if (subscribed) {
-		if (!hq) {
-			hq.emplace(q);
-		}
-		// TODO: Unnecessarily repaints on activating peer.
-		q.setCompositionMode(QPainter::CompositionMode_Source);
-		const auto &s = st::dialogsSubscriptionBadgeSkip;
-		auto path = SubscriptionOutlinePath();
-		const auto x = photoSize - s.x() - st::dialogsSubscriptionBadgeSize;
-		const auto y = photoSize - s.y() - st::dialogsSubscriptionBadgeSize;
-		q.translate(x, y);
-		q.fillPath(path, Qt::transparent);
-		q.setCompositionMode(QPainter::CompositionMode_SourceOver);
-		q.resetTransform();
-		q.drawImage(x, y, SubscriptionIcon());
-		return;
-	}
+        if (subscribed) {
+                if (!hq) {
+                        hq.emplace(q);
+                }
+                const auto previousMode = q.compositionMode();
+                if (previousMode != QPainter::CompositionMode_Source) {
+                        q.setCompositionMode(QPainter::CompositionMode_Source);
+                }
+                const auto &s = st::dialogsSubscriptionBadgeSkip;
+                auto path = SubscriptionOutlinePath();
+                const auto x = photoSize - s.x() - st::dialogsSubscriptionBadgeSize;
+                const auto y = photoSize - s.y() - st::dialogsSubscriptionBadgeSize;
+                q.translate(x, y);
+                q.fillPath(path, Qt::transparent);
+                q.resetTransform();
+                if (previousMode != QPainter::CompositionMode_Source) {
+                        q.setCompositionMode(previousMode);
+                }
+                q.drawImage(x, y, SubscriptionIcon());
+                return;
+        }
 
 	const auto &manager = data->layersManager;
 	if (const auto p = manager.progressForLayer(kBottomLayer); p > 0.) {
@@ -493,10 +497,13 @@ void Row::PaintCornerBadgeFrame(
 		return;
 	}
 
-	if (!hq) {
-		hq.emplace(q);
-	}
-	q.setCompositionMode(QPainter::CompositionMode_Source);
+        if (!hq) {
+                hq.emplace(q);
+        }
+        const auto previousMode = q.compositionMode();
+        if (previousMode != QPainter::CompositionMode_Source) {
+                q.setCompositionMode(QPainter::CompositionMode_Source);
+        }
 
 	const auto online = peer && peer->isUser();
 	const auto size = online
@@ -514,12 +521,15 @@ void Row::PaintCornerBadgeFrame(
 	q.setBrush(data->active
 		? st::dialogsOnlineBadgeFgActive
 		: st::dialogsOnlineBadgeFg);
-	q.drawEllipse(QRectF(
-		photoSize - skip.x() - size,
-		photoSize - skip.y() - size,
-		size,
-		size
-	).marginsRemoved({ shrink, shrink, shrink, shrink }));
+        q.drawEllipse(QRectF(
+                photoSize - skip.x() - size,
+                photoSize - skip.y() - size,
+                size,
+                size
+        ).marginsRemoved({ shrink, shrink, shrink, shrink }));
+        if (previousMode != QPainter::CompositionMode_Source) {
+                q.setCompositionMode(previousMode);
+        }
 }
 
 void Row::paintUserpic(
@@ -586,43 +596,46 @@ void Row::paintUserpic(
 			QImage::Format_ARGB32_Premultiplied);
 		_cornerBadgeUserpic->frame.setDevicePixelRatio(ratio);
 	}
-	auto key = peer ? peer->userpicUniqueKey(userpicView()) : InMemoryKey();
-	key.first += peer ? peer->messagesTTL() : 0;
-	const auto frameIndex = videoUserpic ? videoUserpic->frameIndex() : -1;
-	const auto paletteVersionReal = style::PaletteVersion();
-	const auto paletteVersion = (paletteVersionReal & ((1 << 17) - 1));
-	const auto active = context.active ? 1 : 0;
-	const auto keyChanged = (_cornerBadgeUserpic->key != key)
-		|| (_cornerBadgeUserpic->paletteVersion != paletteVersion);
-	if (keyChanged) {
-		_cornerBadgeUserpic->cacheTTL = QImage();
-	}
-	const auto subscribed = Data::ChannelHasSubscriptionUntilDate(
-		peer ? peer->asChannel() : nullptr);
-	if (keyChanged
-		|| !_cornerBadgeUserpic->layersManager.isFinished()
-		|| _cornerBadgeUserpic->active != active
-		|| _cornerBadgeUserpic->frameIndex != frameIndex
-		|| _cornerBadgeUserpic->storiesCount != storiesCount
-		|| _cornerBadgeUserpic->storiesUnreadCount != storiesUnreadCount
-		|| videoUserpic) {
-		_cornerBadgeUserpic->key = key;
-		_cornerBadgeUserpic->paletteVersion = paletteVersion;
-		_cornerBadgeUserpic->active = active;
-		_cornerBadgeUserpic->storiesCount = storiesCount;
-		_cornerBadgeUserpic->storiesUnreadCount = storiesUnreadCount;
-		_cornerBadgeUserpic->frameIndex = frameIndex;
-		_cornerBadgeUserpic->layersManager.markFrameShown();
-		PaintCornerBadgeFrame(
-			_cornerBadgeUserpic.get(),
-			framePadding,
-			_id.entry(),
-			peer,
-			videoUserpic,
-			userpicView(),
-			context,
-			subscribed);
-	}
+        auto key = peer ? peer->userpicUniqueKey(userpicView()) : InMemoryKey();
+        key.first += peer ? peer->messagesTTL() : 0;
+        const auto frameIndex = videoUserpic ? videoUserpic->frameIndex() : -1;
+        const auto paletteVersionReal = style::PaletteVersion();
+        const auto paletteVersion = (paletteVersionReal & ((1 << 17) - 1));
+        const auto active = context.active ? 1 : 0;
+        const auto activeChanged = (_peerWasActive != active);
+        _peerWasActive = active;
+        const auto keyChanged = (_cornerBadgeUserpic->key != key)
+                || (_cornerBadgeUserpic->paletteVersion != paletteVersion);
+        if (keyChanged) {
+                _cornerBadgeUserpic->cacheTTL = QImage();
+        }
+        const auto subscribed = Data::ChannelHasSubscriptionUntilDate(
+                peer ? peer->asChannel() : nullptr);
+        const auto needsRepaint = keyChanged
+                || !_cornerBadgeUserpic->layersManager.isFinished()
+                || (!subscribed && activeChanged)
+                || _cornerBadgeUserpic->frameIndex != frameIndex
+                || _cornerBadgeUserpic->storiesCount != storiesCount
+                || _cornerBadgeUserpic->storiesUnreadCount != storiesUnreadCount
+                || videoUserpic;
+        _cornerBadgeUserpic->active = active;
+        if (needsRepaint) {
+                _cornerBadgeUserpic->key = key;
+                _cornerBadgeUserpic->paletteVersion = paletteVersion;
+                _cornerBadgeUserpic->storiesCount = storiesCount;
+                _cornerBadgeUserpic->storiesUnreadCount = storiesUnreadCount;
+                _cornerBadgeUserpic->frameIndex = frameIndex;
+                _cornerBadgeUserpic->layersManager.markFrameShown();
+                PaintCornerBadgeFrame(
+                        _cornerBadgeUserpic.get(),
+                        framePadding,
+                        _id.entry(),
+                        peer,
+                        videoUserpic,
+                        userpicView(),
+                        context,
+                        subscribed);
+        }
 	p.drawImage(
 		context.st->padding.left() - framePadding,
 		context.st->padding.top() - framePadding,
