@@ -44,6 +44,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/ui_utility.h"
 #include "ui/inactive_press.h"
+#include "ui/text/text_utilities.h"
 #include "lang/lang_keys.h"
 #include "main/main_session.h"
 #include "main/main_account.h"
@@ -908,16 +909,34 @@ void ListWidget::showContextMenu(
 		} else if (hasSelectedText()) {
 			overSelected = SelectionState::OverSelectedItems;
 		}
-	} else if (hasSelectedText()) {
-		// #TODO text selection
-	} else if (hasSelectedItems()) {
-		auto it = _selected.find(_overState.item);
-		if (isSelectedItem(it) && _overState.inside) {
-			overSelected = SelectionState::OverSelectedItems;
-		} else {
-			overSelected = SelectionState::NotOverSelectedItems;
-		}
-	}
+        } else if (hasSelectedText()) {
+                auto it = _selected.find(_overState.item);
+                if (it != _selected.end() && _overState.inside) {
+                        const auto selection = it->second.text;
+                        if (selection != FullSelection) {
+                                if (const auto layout = _provider->lookupLayout(_overState.item)) {
+                                        StateRequest request;
+                                        request.flags = Ui::Text::StateRequest::Flag::LookupSymbol;
+                                        const auto state = layout->getState(_overState.cursor, request);
+                                        if (state.cursor == CursorState::Text
+                                                && base::in_range(state.symbol, selection.from, selection.to)) {
+                                                overSelected = SelectionState::OverSelectedText;
+                                        } else {
+                                                overSelected = SelectionState::NotOverSelectedText;
+                                        }
+                                }
+                        }
+                } else {
+                        overSelected = SelectionState::NotOverSelectedText;
+                }
+        } else if (hasSelectedItems()) {
+                auto it = _selected.find(_overState.item);
+                if (isSelectedItem(it) && _overState.inside) {
+                        overSelected = SelectionState::OverSelectedItems;
+                } else {
+                        overSelected = SelectionState::NotOverSelectedItems;
+                }
+        }
 
 	const auto canDeleteAll = [&] {
 		return ranges::none_of(_selected, [](auto &&item) {
@@ -1036,11 +1055,20 @@ void ListWidget::showContextMenu(
 				},
 				&st::menuIconCopy);
 		}
-	}
-	if (overSelected == SelectionState::OverSelectedItems) {
-		if (canToggleStoryPinAll()) {
-			const auto tab = _controller->key().storiesTab();
-			const auto toProfile = (tab == Stories::Tab::Archive);
+        }
+        if (hasSelectedText()) {
+                _contextMenu->addAction(
+                        tr::lng_context_copy_selected(tr::now),
+                        crl::guard(this, [this] { copySelectedText(); }),
+                        &st::menuIconCopy);
+                _contextMenu->addAction(
+                        tr::lng_context_clear_selection(tr::now),
+                        crl::guard(this, [this] { clearSelected(); }),
+                        &st::menuIconSelect);
+        } else if (overSelected == SelectionState::OverSelectedItems) {
+                if (canToggleStoryPinAll()) {
+                        const auto tab = _controller->key().storiesTab();
+                        const auto toProfile = (tab == Stories::Tab::Archive);
 			_contextMenu->addAction(
 				(toProfile
 					? tr::lng_mediaview_save_to_profile
@@ -1422,6 +1450,19 @@ void ListWidget::deleteItems(SelectedItems &&items, Fn<void()> confirmed) {
 	}
 }
 
+void ListWidget::copySelectedText() {
+        if (!hasSelectedText()) {
+                return;
+        }
+        const auto &entry = *_selected.cbegin();
+        if (entry.second.text == FullSelection) {
+                return;
+        }
+        if (const auto layout = _provider->lookupLayout(entry.first)) {
+                TextUtilities::SetClipboardText(layout->selectedText(entry.second.text));
+        }
+}
+
 void ListWidget::setActionBoxWeak(QPointer<Ui::BoxContent> box) {
 	if ((_actionBoxWeak = box)) {
 		_actionBoxWeakLifetime = _actionBoxWeak->alive(
@@ -1680,13 +1721,11 @@ void ListWidget::mouseActionUpdate(const QPoint &globalPosition) {
 	} else if (_mouseAction == MouseAction::Dragging) {
 	}
 
-	// #TODO scroll by drag
-	//if (_mouseAction == MouseAction::Selecting) {
-	//	_widget->checkSelectingScroll(mousePos);
-	//} else {
-	//	clearDragSelection();
-	//	_widget->noSelectingScroll();
-	//}
+	if (_mouseAction == MouseAction::Selecting) {
+		dragScroll(mousePos);
+	} else {
+		clearDragSelection();
+	}
 }
 
 style::cursor ListWidget::computeMouseCursor() const {
@@ -1741,11 +1780,18 @@ void ListWidget::updateDragSelection() {
 }
 
 void ListWidget::clearDragSelection() {
-	_dragSelectAction = DragSelectAction::None;
-	if (!_dragSelected.empty()) {
-		_dragSelected.clear();
-		update();
-	}
+        _dragSelectAction = DragSelectAction::None;
+        if (!_dragSelected.empty()) {
+                _dragSelected.clear();
+                update();
+        }
+}
+
+void ListWidget::dragScroll(const QPoint &pos) {
+        const auto delta = ComputeDragScrollOffset(pos.y(), height());
+        if (delta != 0) {
+                _scrollToRequests.fire_copy(_visibleTop + delta);
+        }
 }
 
 void ListWidget::mouseActionStart(

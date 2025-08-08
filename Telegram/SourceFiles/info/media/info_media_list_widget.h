@@ -52,6 +52,15 @@ struct ListContext;
 class ListSection;
 class ListProvider;
 
+[[nodiscard]] inline int ComputeDragScrollOffset(int cursorY, int height) {
+        if (cursorY < 0) {
+                return cursorY;
+        } else if (cursorY > height) {
+                return cursorY - height;
+        }
+        return 0;
+}
+
 class ListWidget final
 	: public Ui::RpWidget
 	, public Overview::Layout::Delegate
@@ -192,10 +201,11 @@ private:
 	void toggleStoryPinSelected();
 	void toggleStoryInProfileSelected();
 	void deleteItem(GlobalMsgId globalId);
-	void deleteItems(SelectedItems &&items, Fn<void()> confirmed = nullptr);
-	void toggleStoryInProfile(
-		MessageIdsList &&items,
-		Fn<void()> confirmed = nullptr);
+        void deleteItems(SelectedItems &&items, Fn<void()> confirmed = nullptr);
+        void copySelectedText();
+        void toggleStoryInProfile(
+                MessageIdsList &&items,
+                Fn<void()> confirmed = nullptr);
 	void toggleStoryPin(
 		MessageIdsList &&items,
 		bool pin,
@@ -247,18 +257,19 @@ private:
 		Qt::MouseButton button);
 	void mouseActionUpdate(const QPoint &globalPosition);
 	void mouseActionUpdate();
-	void mouseActionFinish(
-		const QPoint &globalPosition,
-		Qt::MouseButton button);
-	void mouseActionCancel();
-	void performDrag();
-	[[nodiscard]] style::cursor computeMouseCursor() const;
-	void showContextMenu(
-		QContextMenuEvent *e,
-		ContextMenuSource source);
+        void mouseActionFinish(
+                const QPoint &globalPosition,
+                Qt::MouseButton button);
+        void mouseActionCancel();
+        void performDrag();
+        [[nodiscard]] style::cursor computeMouseCursor() const;
+        void showContextMenu(
+                QContextMenuEvent *e,
+                ContextMenuSource source);
 
-	void updateDragSelection();
-	void clearDragSelection();
+        void updateDragSelection();
+        void clearDragSelection();
+        void dragScroll(const QPoint &pos);
 
 	void updateDateBadgeFor(int top);
 	void scrollDateCheck();
