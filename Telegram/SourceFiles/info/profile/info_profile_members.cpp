@@ -8,6 +8,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "info/profile/info_profile_members.h"
 
 #include <rpl/combine.h>
+#include <crl/crl_time.h>
 #include "info/profile/info_profile_widget.h"
 #include "info/profile/info_profile_values.h"
 #include "info/profile/info_profile_icon.h"
@@ -39,6 +40,7 @@ namespace Profile {
 namespace {
 
 constexpr auto kEnableSearchMembersAfterCount = 20;
+constexpr auto kClickThrottleInterval = crl::time(500);
 
 } // namespace
 
@@ -204,19 +206,29 @@ void Members::setupButtons() {
 	auto addMemberShown = CanAddMemberValue(
 		_peer
 	) | rpl::start_spawning(lifetime());
-	_addMember->showOn(rpl::duplicate(addMemberShown));
-	_addMember->addClickHandler([this] { // TODO throttle(ripple duration)
-		this->addMember();
-	});
+        _addMember->showOn(rpl::duplicate(addMemberShown));
+        _addMember->addClickHandler([this, last = crl::time()] mutable {
+                const auto now = crl::now();
+                if (now - last < kClickThrottleInterval) {
+                        return;
+                }
+                last = now;
+                this->addMember();
+        });
 
 	auto searchShown = MembersCountValue(_peer)
 		| rpl::map(_1 >= kEnableSearchMembersAfterCount)
 		| rpl::distinct_until_changed()
 		| rpl::start_spawning(lifetime());
-	_search->showOn(rpl::duplicate(searchShown));
-	_search->addClickHandler([this] { // TODO throttle(ripple duration)
-		this->showMembersWithSearch(true);
-	});
+        _search->showOn(rpl::duplicate(searchShown));
+        _search->addClickHandler([this, last = crl::time()] mutable {
+                const auto now = crl::now();
+                if (now - last < kClickThrottleInterval) {
+                        return;
+                }
+                last = now;
+                this->showMembersWithSearch(true);
+        });
 	//_cancelSearch->addClickHandler([this] {
 	//	this->cancelSearch();
 	//});
