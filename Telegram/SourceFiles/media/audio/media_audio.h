@@ -67,6 +67,8 @@ class Fader;
 class Loaders;
 
 [[nodiscard]] rpl::producer<AudioMsgId> Updated();
+[[nodiscard]] rpl::producer<AudioMsgId> ExternallyMuted();
+[[nodiscard]] rpl::producer<AudioMsgId> ExternallyUnmuted();
 
 float64 ComputeVolume(AudioMsgId::Type type);
 
@@ -285,7 +287,10 @@ private:
 	void resetFadeStartPosition(AudioMsgId::Type type, int positionInBuffered = -1);
 	bool checkCurrentALError(AudioMsgId::Type type);
 
-	void externalSoundProgress(const AudioMsgId &audio);
+        void externalSoundProgress(const AudioMsgId &audio);
+
+       void notifySongSuppressed();
+       void notifySongUnsuppressed();
 
 	// Thread: Any. Must be locked: AudioMutex.
 	void setStoppedState(Track *current, State state = State::Stopped);
