@@ -10,6 +10,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "apiwrap.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
+#include "data/data_thread.h"
+#include "data/data_forum_topic.h"
 #include "data/data_peer.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
@@ -49,10 +51,12 @@ void ShowAutoDeleteToast(
 } // namespace
 
 TTLValidator::TTLValidator(
-	std::shared_ptr<Ui::Show> show,
-	not_null<PeerData*> peer)
+        std::shared_ptr<Ui::Show> show,
+        not_null<PeerData*> peer,
+        Data::Thread *thread)
 : _peer(peer)
-, _show(std::move(show)) {
+, _show(std::move(show))
+, _thread(thread) {
 }
 
 Args TTLValidator::createArgs() const {
@@ -109,16 +113,21 @@ Args TTLValidator::createArgs() const {
 }
 
 bool TTLValidator::can() const {
-	return (_peer->isUser()
-			&& !_peer->isSelf()
-			&& !_peer->isNotificationsUser()
-			&& !_peer->asUser()->isInaccessible())
-		|| (_peer->isChat()
-			&& _peer->asChat()->canEditInformation()
-			&& _peer->asChat()->amIn())
-		|| (_peer->isChannel()
-			&& _peer->asChannel()->canEditInformation()
-			&& _peer->asChannel()->amIn());
+        if (_thread) {
+                if (const auto topic = _thread->asTopic()) {
+                        return topic->canEdit();
+                }
+        }
+        return (_peer->isUser()
+                        && !_peer->isSelf()
+                        && !_peer->isNotificationsUser()
+                        && !_peer->asUser()->isInaccessible())
+                || (_peer->isChat()
+                        && _peer->asChat()->canEditInformation()
+                        && _peer->asChat()->amIn())
+                || (_peer->isChannel()
+                        && _peer->asChannel()->canEditInformation()
+                        && _peer->asChannel()->amIn());
 }
 
 void TTLValidator::showToast() const {
