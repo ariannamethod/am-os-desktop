@@ -24,6 +24,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_channel.h"
 #include "data/data_forum_topic.h"
 #include "data/data_user.h"
+#include "data/data_changes.h"
 #include "data/data_document.h"
 #include "data/data_poll.h"
 #include "base/unixtime.h"
@@ -126,6 +127,53 @@ base::options::toggle OptionGNotification({
 	},
 	.restartRequired = true,
 });
+
+namespace {
+
+struct CachedUserpicView {
+       std::shared_ptr<Ui::PeerUserpicView> view;
+       not_null<Main::Session*> session = nullptr;
+       rpl::lifetime lifetime;
+};
+
+base::flat_map<PeerId, CachedUserpicView> g_userpicViews;
+
+[[nodiscard]] std::shared_ptr<Ui::PeerUserpicView> LookupUserpicView(
+               not_null<PeerData*> peer) {
+       const auto key = peer->id;
+       if (const auto it = g_userpicViews.find(key); it != end(g_userpicViews)) {
+               return it->second.view;
+       }
+       auto view = std::make_shared<Ui::PeerUserpicView>(peer->createUserpicView());
+       auto &data = g_userpicViews[key];
+       data.view = view;
+       data.session = &peer->session();
+       peer->session().changes().peerUpdates(
+               peer,
+               Data::PeerUpdate::Flag::Photo
+       ) | rpl::start_with_next([weak = std::weak_ptr(view), peer](Data::PeerUpdate) {
+               if (auto strong = weak.lock()) {
+                       *strong = peer->createUserpicView();
+               }
+       }, data.lifetime);
+       return view;
+}
+
+void ReleaseUserpicView(PeerId peerId) {
+       g_userpicViews.remove(peerId);
+}
+
+void ReleaseUserpicViews(not_null<Main::Session*> session) {
+       for (auto i = g_userpicViews.begin(); i != g_userpicViews.end();) {
+               if (i->second.session == session) {
+                       i = g_userpicViews.erase(i);
+               } else {
+                       ++i;
+               }
+       }
+}
+
+} // namespace
 
 struct System::Waiter {
 	NotificationInHistoryKey key;
@@ -444,21 +492,23 @@ void System::clearForThreadIf(Fn<bool(not_null<Data::Thread*>)> predicate) {
 }
 
 void System::clearFromHistory(not_null<History*> history) {
-	if (_manager) {
-		_manager->clearFromHistory(history);
-	}
-	clearForThreadIf([&](not_null<Data::Thread*> thread) {
-		return (thread->owningHistory() == history);
-	});
+        if (_manager) {
+                _manager->clearFromHistory(history);
+        }
+        clearForThreadIf([&](not_null<Data::Thread*> thread) {
+                return (thread->owningHistory() == history);
+        });
+       ReleaseUserpicView(history->peer->id);
 }
 
 void System::clearFromSession(not_null<Main::Session*> session) {
-	if (_manager) {
-		_manager->clearFromSession(session);
-	}
-	clearForThreadIf([&](not_null<Data::Thread*> thread) {
-		return (&thread->session() == session);
-	});
+        if (_manager) {
+                _manager->clearFromSession(session);
+        }
+        clearForThreadIf([&](not_null<Data::Thread*> thread) {
+                return (&thread->session() == session);
+        });
+       ReleaseUserpicViews(session);
 }
 
 void System::clearIncomingFromHistory(not_null<History*> history) {
@@ -484,15 +534,16 @@ void System::clearFromItem(not_null<HistoryItem*> item) {
 }
 
 void System::clearAllFast() {
-	if (_manager) {
-		_manager->clearAllFast();
-	}
+        if (_manager) {
+                _manager->clearAllFast();
+        }
 
-	_whenMaps.clear();
-	_whenAlerts.clear();
-	_waiters.clear();
-	_settingWaiters.clear();
-	_watchedTopics.clear();
+        _whenMaps.clear();
+        _whenAlerts.clear();
+        _waiters.clear();
+        _settingWaiters.clear();
+       _watchedTopics.clear();
+       g_userpicViews.clear();
 }
 
 void System::checkDelayed() {
@@ -1210,17 +1261,16 @@ void NativeManager::doShowNotification(NotificationFields &&fields) {
 			})),
 			(fields.forwardedCount == 1));
 
-	// #TODO optimize
-	auto userpicView = item->history()->peer->createUserpicView();
-	doShowNativeNotification(
-		item->history()->peer,
-		item->topicRootId(),
-		userpicView,
-		item->id,
-		scheduled ? WrapFromScheduled(fullTitle) : fullTitle,
-		subtitle,
-		text,
-		options);
+       auto userpicView = LookupUserpicView(item->history()->peer);
+       doShowNativeNotification(
+               item->history()->peer,
+               item->topicRootId(),
+               *userpicView,
+               item->id,
+               scheduled ? WrapFromScheduled(fullTitle) : fullTitle,
+               subtitle,
+               text,
+               options);
 }
 
 bool NativeManager::forceHideDetails() const {
