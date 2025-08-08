@@ -7,35 +7,33 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/info_controller.h"
 
-#include "ui/search_field_controller.h"
-#include "data/data_shared_media.h"
-#include "info/info_content_widget.h"
-#include "info/info_memento.h"
-#include "info/media/info_media_widget.h"
 #include "core/application.h"
 #include "data/data_changes.h"
-#include "data/data_peer.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
-#include "data/data_forum_topic.h"
-#include "data/data_forum.h"
-#include "data/data_session.h"
-#include "data/data_media_types.h"
 #include "data/data_download_manager.h"
+#include "data/data_forum.h"
+#include "data/data_forum_topic.h"
+#include "data/data_media_types.h"
+#include "data/data_peer.h"
+#include "data/data_session.h"
+#include "data/data_shared_media.h"
 #include "history/history_item.h"
+#include "info/info_content_widget.h"
+#include "info/info_memento.h"
+#include "info/media/info_media_settings.h"
+#include "info/media/info_media_widget.h"
 #include "main/main_session.h"
+#include "ui/search_field_controller.h"
 #include "window/window_session_controller.h"
 
 namespace Info {
 
-Key::Key(not_null<PeerData*> peer) : _value(peer) {
-}
+Key::Key(not_null<PeerData *> peer) : _value(peer) {}
 
-Key::Key(not_null<Data::ForumTopic*> topic) : _value(topic) {
-}
+Key::Key(not_null<Data::ForumTopic *> topic) : _value(topic) {}
 
-Key::Key(Settings::Tag settings) : _value(settings) {
-}
+Key::Key(Settings::Tag settings) : _value(settings) {}
 
 Key::Key(Downloads::Tag downloads) : _value(downloads) {
 }
@@ -397,36 +395,29 @@ rpl::producer<bool> Controller::searchEnabledByContent() const {
 }
 
 rpl::producer<QString> Controller::mediaSourceQueryValue() const {
-	return _searchController->currentQueryValue();
+  return _searchController->currentQueryValue();
 }
 
 rpl::producer<QString> Controller::searchQueryValue() const {
-	return searchFieldController()->queryValue();
+  return searchFieldController()->queryValue();
 }
 
-rpl::producer<SparseIdsMergedSlice> Controller::mediaSource(
-		SparseIdsMergedSlice::UniversalMsgId aroundId,
-		int limitBefore,
-		int limitAfter) const {
-	auto query = _searchController->currentQuery();
-	if (!query.query.isEmpty()) {
-		return _searchController->idsSlice(
-			aroundId,
-			limitBefore,
-			limitAfter);
-	}
+rpl::producer<SparseIdsMergedSlice>
+Controller::mediaSource(SparseIdsMergedSlice::UniversalMsgId aroundId,
+                        int limitBefore, int limitAfter) const {
+  auto query = _searchController->currentQuery();
+  if (!query.query.isEmpty()) {
+    const auto batch = Media::GetSettings().mediaCountForSearch;
+    return _searchController->idsSlice(aroundId, batch, batch);
+  }
 
-	return SharedMediaMergedViewer(
-		&session(),
-		SharedMediaMergedKey(
-			SparseIdsMergedSlice::Key(
-				query.peerId,
-				query.topicRootId,
-				query.migratedPeerId,
-				aroundId),
-			query.type),
-		limitBefore,
-		limitAfter);
+  return SharedMediaMergedViewer(
+      &session(),
+      SharedMediaMergedKey(
+          SparseIdsMergedSlice::Key(query.peerId, query.topicRootId,
+                                    query.migratedPeerId, aroundId),
+          query.type),
+      limitBefore, limitAfter);
 }
 
 std::any &Controller::stepDataReference() {

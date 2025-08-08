@@ -7,86 +7,81 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "info/media/info_media_list_widget.h"
 
-#include "info/media/info_media_common.h"
-#include "info/media/info_media_provider.h"
-#include "info/media/info_media_list_section.h"
-#include "info/downloads/info_downloads_provider.h"
-#include "info/stories/info_stories_provider.h"
-#include "info/info_controller.h"
-#include "layout/layout_mosaic.h"
-#include "layout/layout_selection.h"
-#include "data/data_media_types.h"
-#include "data/data_photo.h"
-#include "data/data_chat.h"
-#include "data/data_channel.h"
-#include "data/data_peer_values.h"
-#include "data/data_document.h"
-#include "data/data_session.h"
-#include "data/data_stories.h"
-#include "data/data_file_click_handler.h"
-#include "data/data_file_origin.h"
-#include "data/data_download_manager.h"
-#include "data/data_forum_topic.h"
-#include "history/history_item.h"
-#include "history/history_item_helpers.h"
-#include "history/history.h"
-#include "history/view/history_view_cursor_state.h"
-#include "history/view/history_view_service_message.h"
-#include "media/stories/media_stories_controller.h" // ...TogglePinnedToast.
-#include "media/stories/media_stories_share.h" // PrepareShareBox.
-#include "window/window_session_controller.h"
-#include "window/window_peer_menu.h"
-#include "ui/widgets/popup_menu.h"
-#include "ui/boxes/confirm_box.h"
-#include "ui/controls/delete_message_context_action.h"
-#include "ui/chat/chat_style.h"
-#include "ui/cached_round_corners.h"
-#include "ui/painter.h"
-#include "ui/ui_utility.h"
-#include "ui/inactive_press.h"
-#include "lang/lang_keys.h"
-#include "main/main_session.h"
-#include "main/main_account.h"
-#include "mainwidget.h"
-#include "mainwindow.h"
+#include "base/call_delayed.h"
 #include "base/platform/base_platform_info.h"
 #include "base/weak_ptr.h"
-#include "base/call_delayed.h"
-#include "media/player/media_player_instance.h"
 #include "boxes/delete_messages_box.h"
 #include "boxes/peer_list_controllers.h"
-#include "core/file_utilities.h"
 #include "core/application.h"
-#include "ui/toast/toast.h"
-#include "styles/style_overview.h"
+#include "core/file_utilities.h"
+#include "data/data_channel.h"
+#include "data/data_chat.h"
+#include "data/data_document.h"
+#include "data/data_download_manager.h"
+#include "data/data_file_click_handler.h"
+#include "data/data_file_origin.h"
+#include "data/data_forum_topic.h"
+#include "data/data_media_types.h"
+#include "data/data_peer_values.h"
+#include "data/data_photo.h"
+#include "data/data_session.h"
+#include "data/data_stories.h"
+#include "history/history.h"
+#include "history/history_item.h"
+#include "history/history_item_helpers.h"
+#include "history/view/history_view_cursor_state.h"
+#include "history/view/history_view_service_message.h"
+#include "info/downloads/info_downloads_provider.h"
+#include "info/info_controller.h"
+#include "info/media/info_media_common.h"
+#include "info/media/info_media_list_section.h"
+#include "info/media/info_media_provider.h"
+#include "info/media/info_media_settings.h"
+#include "info/stories/info_stories_provider.h"
+#include "lang/lang_keys.h"
+#include "layout/layout_mosaic.h"
+#include "layout/layout_selection.h"
+#include "main/main_account.h"
+#include "main/main_session.h"
+#include "mainwidget.h"
+#include "mainwindow.h"
+#include "media/player/media_player_instance.h"
+#include "media/stories/media_stories_controller.h" // ...TogglePinnedToast.
+#include "media/stories/media_stories_share.h"      // PrepareShareBox.
+#include "styles/style_chat.h"
 #include "styles/style_info.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
-#include "styles/style_chat.h"
+#include "styles/style_overview.h"
+#include "ui/boxes/confirm_box.h"
+#include "ui/cached_round_corners.h"
+#include "ui/chat/chat_style.h"
+#include "ui/controls/delete_message_context_action.h"
+#include "ui/inactive_press.h"
+#include "ui/painter.h"
+#include "ui/toast/toast.h"
+#include "ui/ui_utility.h"
+#include "ui/widgets/popup_menu.h"
+#include "window/window_peer_menu.h"
+#include "window/window_session_controller.h"
 
-#include <QtWidgets/QApplication>
 #include <QtGui/QClipboard>
+#include <QtWidgets/QApplication>
 
 namespace Info {
 namespace Media {
-namespace {
-
-constexpr auto kMediaCountForSearch = 10;
-
-} // namespace
-
 struct ListWidget::DateBadge {
-	DateBadge(Type type, Fn<void()> checkCallback, Fn<void()> hideCallback);
+  DateBadge(Type type, Fn<void()> checkCallback, Fn<void()> hideCallback);
 
-	SingleQueuedInvokation check;
-	base::Timer hideTimer;
-	Ui::Animations::Simple opacity;
-	Ui::CornersPixmaps corners;
-	bool goodType = false;
-	bool shown = false;
-	QString text;
-	int textWidth = 0;
-	QRect rect;
+  SingleQueuedInvokation check;
+  base::Timer hideTimer;
+  Ui::Animations::Simple opacity;
+  Ui::CornersPixmaps corners;
+  bool goodType = false;
+  bool shown = false;
+  QString text;
+  int textWidth = 0;
+  QRect rect;
 };
 
 [[nodiscard]] std::unique_ptr<ListProvider> MakeProvider(
@@ -542,28 +537,28 @@ void ListWidget::refreshRows() {
 	saveScrollState();
 
 	_sections.clear();
-	_sections = _provider->fillSections(this);
+        _sections = _provider->fillSections(this);
 
-	if (_controller->isDownloads() && !_sections.empty()) {
-		for (const auto &item : _sections.back().items()) {
-			trackSession(&item->getItem()->history()->session());
-		}
-	}
+        if (_controller->isDownloads() && !_sections.empty()) {
+          for (const auto &item : _sections.back().items()) {
+            trackSession(&item->getItem()->history()->session());
+          }
+        }
 
-	if (const auto count = _provider->fullCount()) {
-		if (*count > kMediaCountForSearch) {
-			_controller->setSearchEnabledByContent(true);
-		}
-	}
+        if (const auto count = _provider->fullCount()) {
+          if (*count > GetSettings().mediaCountForSearch) {
+            _controller->setSearchEnabledByContent(true);
+          }
+        }
 
-	resizeToWidth(width());
-	restoreScrollState();
-	mouseActionUpdate();
-	update();
+        resizeToWidth(width());
+        restoreScrollState();
+        mouseActionUpdate();
+        update();
 }
 
 bool ListWidget::preventAutoHide() const {
-	return (_contextMenu != nullptr) || (_actionBoxWeak != nullptr);
+  return (_contextMenu != nullptr) || (_actionBoxWeak != nullptr);
 }
 
 void ListWidget::saveState(not_null<Memento*> memento) {
