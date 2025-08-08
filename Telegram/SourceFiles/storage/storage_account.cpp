@@ -143,6 +143,8 @@ Account::Account(not_null<Main::Account*> owner, const QString &dataName)
 , _cacheBigFileTotalSizeLimit(Database::Settings().totalSizeLimit)
 , _cacheTotalTimeLimit(Database::Settings().totalTimeLimit)
 , _cacheBigFileTotalTimeLimit(Database::Settings().totalTimeLimit)
+, _archivedStickersRead(false)
+, _archivedMasksRead(false)
 , _writeMapTimer([=] { writeMap(); })
 , _writeLocationsTimer([=] { writeLocations(); })
 , _writeSearchSuggestionsTimer([=] { writeSearchSuggestions(); }) {
@@ -660,12 +662,14 @@ void Account::reset() {
 	_favedStickersKey = 0;
 	_archivedStickersKey = 0;
 	_savedGifsKey = 0;
-	_installedMasksKey = 0;
-	_recentMasksKey = 0;
-	_archivedMasksKey = 0;
-	_installedCustomEmojiKey = 0;
-	_featuredCustomEmojiKey = 0;
-	_archivedCustomEmojiKey = 0;
+        _installedMasksKey = 0;
+        _recentMasksKey = 0;
+        _archivedMasksKey = 0;
+        _archivedStickersRead = false;
+        _archivedMasksRead = false;
+        _installedCustomEmojiKey = 0;
+        _featuredCustomEmojiKey = 0;
+        _archivedCustomEmojiKey = 0;
 	_legacyBackgroundKeyDay = _legacyBackgroundKeyNight = 0;
 	_settingsKey = _recentHashtagsAndBotsKey = _exportSettingsKey = 0;
 	_searchSuggestionsKey = 0;
@@ -2484,25 +2488,21 @@ void Account::readFavedStickers() {
 }
 
 void Account::readArchivedStickers() {
-	// TODO: refactor to support for multiple accounts.
-	static bool archivedStickersRead = false;
-	if (!archivedStickersRead) {
-		readStickerSets(
-			_archivedStickersKey,
-			&_owner->session().data().stickers().archivedSetsOrderRef());
-		archivedStickersRead = true;
-	}
+        if (!_archivedStickersRead) {
+                readStickerSets(
+                        _archivedStickersKey,
+                        &_owner->session().data().stickers().archivedSetsOrderRef());
+                _archivedStickersRead = true;
+        }
 }
 
 void Account::readArchivedMasks() {
-	// TODO: refactor to support for multiple accounts.
-	static bool archivedMasksRead = false;
-	if (!archivedMasksRead) {
-		readStickerSets(
-			_archivedMasksKey,
-			&_owner->session().data().stickers().archivedMaskSetsOrderRef());
-		archivedMasksRead = true;
-	}
+        if (!_archivedMasksRead) {
+                readStickerSets(
+                        _archivedMasksKey,
+                        &_owner->session().data().stickers().archivedMaskSetsOrderRef());
+                _archivedMasksRead = true;
+        }
 }
 
 void Account::readInstalledMasks() {
