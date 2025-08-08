@@ -1195,15 +1195,13 @@ void Filler::addThemeEdit() {
 }
 
 void Filler::addTTLSubmenu(bool addSeparator) {
-	if (_thread->asTopic()) {
-		return; // #TODO later forum
-	}
-	const auto validator = TTLMenu::TTLValidator(
-		_controller->uiShow(),
-		_peer);
-	if (!validator.can()) {
-		return;
-	}
+        const auto validator = TTLMenu::TTLValidator(
+                _controller->uiShow(),
+                _peer,
+                _thread);
+        if (!validator.can()) {
+                return;
+        }
 	const auto text = tr::lng_manage_messages_ttl_menu(tr::now)
 		+ (_peer->messagesTTL()
 			? ('\t' + Ui::FormatTTLTiny(_peer->messagesTTL()))
