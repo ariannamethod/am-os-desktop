@@ -309,10 +309,12 @@ private:
 	qint32 _cacheBigFileTotalTimeLimit = 0;
 
 	base::flat_map<PeerId, base::flags<BotTrustFlag>> _trustedBots;
-	bool _trustedBotsRead = false;
-	bool _readingUserSettings = false;
-	bool _recentHashtagsAndBotsWereRead = false;
-	bool _searchSuggestionsRead = false;
+        bool _trustedBotsRead = false;
+        bool _readingUserSettings = false;
+        bool _recentHashtagsAndBotsWereRead = false;
+        bool _searchSuggestionsRead = false;
+        bool _archivedStickersRead = false;
+        bool _archivedMasksRead = false;
 
 	Webview::StorageId _webviewStorageIdBots;
 	Webview::StorageId _webviewStorageIdOther;
