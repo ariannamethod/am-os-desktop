@@ -208,12 +208,25 @@ Application::Application()
 		updateWindowTitles();
 	}, _lifetime);
 
-	_domain->activeSessionChanges(
-	) | rpl::start_with_next([=](Main::Session *session) {
-		if (session && !UpdaterDisabled()) { // #TODO multi someSessionValue
-			UpdateChecker().setMtproto(session);
-		}
-	}, _lifetime);
+       _domain->activeSessionChanges(
+       ) | rpl::start_with_next([=](Main::Session *session) {
+               if (_updateCheckerAccount) {
+                       if (const auto it = _updateCheckers.find(_updateCheckerAccount);
+                               it != _updateCheckers.end()) {
+                               it->second->setMtproto(nullptr);
+                       }
+                       _updateCheckerAccount = nullptr;
+               }
+               if (session && !UpdaterDisabled()) {
+                       const auto account = &session->account();
+                       auto &checker = _updateCheckers[account];
+                       if (!checker) {
+                               checker = std::make_unique<UpdateChecker>();
+                       }
+                       checker->setMtproto(session);
+                       _updateCheckerAccount = account;
+               }
+       }, _lifetime);
 }
 
 void Application::closeAdditionalWindows() {

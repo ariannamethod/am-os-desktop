@@ -114,6 +114,7 @@ namespace Core {
 struct LocalUrlHandler;
 class Settings;
 class Tray;
+class UpdateChecker;
 
 enum class LaunchState {
 	Running,
@@ -422,10 +423,12 @@ private:
 	const std::unique_ptr<Main::Domain> _domain;
 	const std::unique_ptr<Export::Manager> _exportManager;
 	const std::unique_ptr<Calls::Instance> _calls;
-	const std::unique_ptr<Iv::Instance> _iv;
-	base::flat_map<
-		Window::SeparateId,
-		std::unique_ptr<Window::Controller>> _windows;
+        const std::unique_ptr<Iv::Instance> _iv;
+        base::flat_map<not_null<Main::Account*>, std::unique_ptr<UpdateChecker>> _updateCheckers;
+        Main::Account *_updateCheckerAccount = nullptr;
+        base::flat_map<
+                Window::SeparateId,
+                std::unique_ptr<Window::Controller>> _windows;
 	base::flat_set<not_null<Window::Controller*>> _closingAsyncWindows;
 	std::vector<not_null<Window::Controller*>> _windowStack;
 	Window::Controller *_lastActiveWindow = nullptr;
