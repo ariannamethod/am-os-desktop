@@ -16,6 +16,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "core/application.h"
 #include "core/changelogs.h"
+#include "settings/settings_manager.h"
 #include "core/click_handler_types.h"
 #include "mainwindow.h"
 #include "main/main_account.h"
@@ -1244,7 +1245,7 @@ void Updater::start(bool forceWait) {
 	}
 
 	_timer.cancel();
-	if (!cAutoUpdate() || _action != Action::Waiting) {
+	if (!SettingsManager::instance().autoUpdate() || _action != Action::Waiting) {
 		return;
 	}
 
@@ -1649,7 +1650,7 @@ void UpdateApplication() {
 		}();
 		UrlClickHandler::Open(url);
 	} else {
-		cSetAutoUpdate(true);
+		SettingsManager::instance().setAutoUpdate(true);
 		const auto window = Core::IsAppLaunched()
 			? Core::App().activePrimaryWindow()
 			: nullptr;
