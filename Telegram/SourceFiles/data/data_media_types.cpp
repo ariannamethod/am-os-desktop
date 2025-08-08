@@ -7,6 +7,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 */
 #include "data/data_media_types.h"
 
+#include <unordered_map>
+
 #include "base/random.h"
 #include "boxes/send_credits_box.h" // CreditsEmoji.
 #include "history/history.h"
@@ -69,6 +71,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_session_settings.h"
 #include "core/application.h"
 #include "core/click_handler_types.h" // ClickHandlerContext
+#include "platform/platform_specific.h"
 #include "lang/lang_keys.h"
 #include "storage/file_upload.h"
 #include "window/window_session_controller.h" // SessionController::uiShow.
@@ -2252,52 +2255,66 @@ ClickHandlerPtr MediaDice::makeHandler() const {
 }
 
 ClickHandlerPtr MediaDice::MakeHandler(
-		not_null<History*> history,
-		const QString &emoji) {
-	// TODO support multi-windows.
-	static auto ShownToast = base::weak_ptr<Ui::Toast::Instance>();
-	static const auto HideExisting = [] {
-		if (const auto toast = ShownToast.get()) {
-			toast->hideAnimated();
-			ShownToast = nullptr;
-		}
-	};
-	return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
-		auto config = Ui::Toast::Config{
-			.text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
-			.st = &st::historyDiceToast,
-			.duration = Ui::Toast::kDefaultDuration * 2,
-		};
-		if (CanSend(history->peer, ChatRestriction::SendOther)) {
-			auto link = Ui::Text::Link(tr::lng_about_random_send(tr::now));
-			link.entities.push_back(
-				EntityInText(EntityType::Semibold, 0, link.text.size()));
-			config.text.append(' ').append(std::move(link));
-			config.filter = crl::guard(&history->session(), [=](
-					const ClickHandlerPtr &handler,
-					Qt::MouseButton button) {
-				if (button == Qt::LeftButton && !ShownToast.empty()) {
-					auto message = Api::MessageToSend(
-						Api::SendAction(history));
-					message.action.clearDraft = false;
-					message.textWithTags.text = emoji;
+                not_null<History*> history,
+                const QString &emoji) {
+        using WindowId = uint64;
+        static auto ShownToast = std::unordered_map<WindowId, base::weak_ptr<Ui::Toast::Instance>>();
+        static const auto HideExisting = [](WindowId windowId) {
+                const auto it = ShownToast.find(windowId);
+                if (it != end(ShownToast)) {
+                        if (const auto toast = it->second.get()) {
+                                toast->hideAnimated();
+                        }
+                        ShownToast.erase(it);
+                }
+        };
+        return std::make_shared<LambdaClickHandler>([=](ClickContext context) {
+                auto config = Ui::Toast::Config{
+                        .text = { tr::lng_about_random(tr::now, lt_emoji, emoji) },
+                        .st = &st::historyDiceToast,
+                        .duration = Ui::Toast::kDefaultDuration * 2,
+                };
+                if (CanSend(history->peer, ChatRestriction::SendOther)) {
+                        auto link = Ui::Text::Link(tr::lng_about_random_send(tr::now));
+                        link.entities.push_back(
+                                EntityInText(EntityType::Semibold, 0, link.text.size()));
+                        config.text.append(' ').append(std::move(link));
+                        config.filter = crl::guard(&history->session(), [=](
+                                        const ClickHandlerPtr &handler,
+                                        Qt::MouseButton button) {
+                                if (button == Qt::LeftButton) {
+                                        const auto window = history->session().tryResolveWindow();
+                                        const auto windowId = window
+                                                ? Platform::ActivationWindowId(window->window().widget())
+                                                : WindowId();
+                                        const auto it = ShownToast.find(windowId);
+                                        if (it != end(ShownToast) && !it->second.empty()) {
+                                                auto message = Api::MessageToSend(
+                                                        Api::SendAction(history));
+                                                message.action.clearDraft = false;
+                                                message.textWithTags.text = emoji;
 
-					Api::SendDice(message);
-					HideExisting();
-				}
-				return false;
-			});
-		}
+                                                Api::SendDice(message);
+                                                HideExisting(windowId);
+                                        }
+                                }
+                                return false;
+                        });
+                }
 
-		HideExisting();
-		const auto my = context.other.value<ClickHandlerContext>();
-		const auto weak = my.sessionWindow;
-		if (const auto strong = weak.get()) {
-			ShownToast = strong->showToast(std::move(config));
-		} else {
-			ShownToast = Ui::Toast::Show(std::move(config));
-		}
-	});
+                const auto window = history->session().tryResolveWindow();
+                const auto windowId = window
+                        ? Platform::ActivationWindowId(window->window().widget())
+                        : WindowId();
+                HideExisting(windowId);
+                const auto my = context.other.value<ClickHandlerContext>();
+                const auto weak = my.sessionWindow;
+                if (const auto strong = weak.get()) {
+                        ShownToast[windowId] = strong->showToast(std::move(config));
+                } else {
+                        ShownToast[windowId] = Ui::Toast::Show(std::move(config));
+                }
+        });
 }
 
 MediaGiftBox::MediaGiftBox(
