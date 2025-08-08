@@ -938,6 +938,8 @@ PRIVATE
     info/media/info_media_provider.cpp
     info/media/info_media_provider.h
     info/media/info_media_widget.cpp
+    info/media/info_media_settings.cpp
+    info/media/info_media_settings.h
     info/media/info_media_widget.h
     info/members/info_members_widget.cpp
     info/members/info_members_widget.h
