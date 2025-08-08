@@ -56,9 +56,6 @@ bool gPasswordRecovered = false;
 int32 gPasscodeBadTries = 0;
 crl::time gPasscodeLastTry = 0;
 
-float64 gRetinaFactor = 1.;
-int32 gIntRetinaFactor = 1;
-
 int gOtherOnline = 0;
 
 int32 gAutoDownloadPhoto = 0; // all auto download
