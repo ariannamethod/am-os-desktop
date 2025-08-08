@@ -12,6 +12,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "media/streaming/media_streaming_reader.h"
 #include "ffmpeg/ffmpeg_utility.h"
 #include "base/bytes.h"
+#include "base/expected.h"
 #include "base/weak_ptr.h"
 
 #include <thread>
@@ -89,10 +90,9 @@ private:
 			const Stream &stream,
 			crl::time position);
 
-		// TODO base::expected.
-		[[nodiscard]] auto readPacket()
-		-> std::variant<FFmpeg::Packet, FFmpeg::AvErrorWrap>;
-		void processQueuedPackets(SleepPolicy policy);
+               [[nodiscard]] auto readPacket()
+               -> base::expected<FFmpeg::Packet, FFmpeg::AvErrorWrap>;
+               void processQueuedPackets(SleepPolicy policy);
 
 		void handleEndOfFile();
 		void sendFullInCache(bool force = false);
