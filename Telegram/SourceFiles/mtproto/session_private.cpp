@@ -502,12 +502,16 @@ mtpMsgId SessionPrivate::replaceMsgId(SerializedRequest &request, mtpMsgId newId
 		_ackedIds.emplace(newId, requestId);
 	}
 
-	const auto k = haveSent.find(oldMsgId);
-	if (k != haveSent.end()) {
-		const auto request = k->second;
-		haveSent.erase(k);
-		haveSent.emplace(newId, request);
-	}
+       const auto k = haveSent.find(oldMsgId);
+       if (k != haveSent.end()) {
+               const auto request = k->second;
+               haveSent.erase(k);
+               const auto [it, inserted] = haveSent.emplace(newId, request);
+               if (!inserted) {
+                       MTP_LOG(_shiftedDcId, ("Duplicate msg_id %1").arg(newId));
+                       it->second = request;
+               }
+       }
 	for (auto &[msgId, container] : _sentContainers) {
 		for (auto &innerMsgId : container.messages) {
 			if (innerMsgId == oldMsgId) {
@@ -782,14 +786,18 @@ void SessionPrivate::tryToSend() {
 				needAnyResponse = true;
 			}
 
-			if (toSendRequest->requestId) {
-				if (toSendRequest.needAck()) {
-					toSendRequest->lastSentTime = crl::now();
+                       if (toSendRequest->requestId) {
+                               if (toSendRequest.needAck()) {
+                                       toSendRequest->lastSentTime = crl::now();
 
-					QWriteLocker locker2(_sessionData->haveSentMutex());
-					auto &haveSent = _sessionData->haveSentMap();
-					haveSent.emplace(msgId, toSendRequest);
-					scheduleCheckSentRequests = true;
+                                       QWriteLocker locker2(_sessionData->haveSentMutex());
+                                       auto &haveSent = _sessionData->haveSentMap();
+                                       const auto [it, inserted] = haveSent.emplace(msgId, toSendRequest);
+                                       if (!inserted) {
+                                               MTP_LOG(_shiftedDcId, ("Duplicate msg_id %1").arg(msgId));
+                                               it->second = toSendRequest;
+                                       }
+                                       scheduleCheckSentRequests = true;
 
 					const auto wrapLayer = needsLayer && toSendRequest->needsLayer;
 					if (toSendRequest->after) {
@@ -911,14 +919,18 @@ void SessionPrivate::tryToSend() {
 							added = true;
 						}
 
-						// #TODO rewrite so that it will always hold.
-						//Assert(!haveSent.contains(msgId));
-						haveSent.emplace(msgId, request);
-						sentIdsWrap.messages.push_back(msgId);
-						scheduleCheckSentRequests = true;
-						needAnyResponse = true;
-					} else {
-						_ackedIds.emplace(msgId, request->requestId);
+                                               // #TODO rewrite so that it will always hold.
+                                               //Assert(!haveSent.contains(msgId));
+                                               const auto [it, inserted] = haveSent.emplace(msgId, request);
+                                               if (!inserted) {
+                                                       MTP_LOG(_shiftedDcId, ("Duplicate msg_id %1").arg(msgId));
+                                                       it->second = request;
+                                               }
+                                               sentIdsWrap.messages.push_back(msgId);
+                                               scheduleCheckSentRequests = true;
+                                               needAnyResponse = true;
+                                       } else {
+                                               _ackedIds.emplace(msgId, request->requestId);
 					}
 				}
 				if (!added) {
