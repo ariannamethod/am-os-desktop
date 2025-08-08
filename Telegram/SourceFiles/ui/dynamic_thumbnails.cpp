@@ -23,8 +23,65 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "ui/painter.h"
 #include "ui/userpic_view.h"
 
+#include <QHash>
+#include <optional>
+#include <mutex>
+
 namespace Ui {
 namespace {
+
+struct CacheKey {
+        QString id;
+        int size = 0;
+        bool operator==(const CacheKey &other) const noexcept {
+                return (size == other.size) && (id == other.id);
+        }
+};
+
+inline uint qHash(const CacheKey &key, uint seed = 0) {
+        return ::qHash(key.id, seed) ^ uint(key.size);
+}
+
+class ThumbnailCache {
+public:
+        static ThumbnailCache &instance() {
+                static ThumbnailCache cache;
+                return cache;
+        }
+
+        std::optional<QImage> get(const CacheKey &key) {
+                std::lock_guard<std::mutex> lock(_mutex);
+                const auto it = _cache.find(key);
+                if (it != _cache.end()) {
+                        return it.value();
+                }
+                return std::nullopt;
+        }
+
+        void put(const CacheKey &key, QImage image) {
+                std::lock_guard<std::mutex> lock(_mutex);
+                _cache.insert(key, std::move(image));
+        }
+
+private:
+        std::mutex _mutex;
+        QHash<CacheKey, QImage> _cache;
+};
+
+template <typename Generator, typename Ready>
+void loadCachedAsync(const CacheKey &key, Generator generator, Ready ready) {
+        if (const auto cached = ThumbnailCache::instance().get(key)) {
+                ready(*cached);
+                return;
+        }
+        crl::async([=]() mutable {
+                auto image = generator();
+                ThumbnailCache::instance().put(key, image);
+                crl::on_main([image = std::move(image), ready]() mutable {
+                        ready(image);
+                });
+        });
+}
 
 class PeerUserpic final : public DynamicImage {
 public:
@@ -79,11 +136,12 @@ protected:
 	virtual void clear() = 0;
 
 private:
-	const FullStoryId _id;
-	QImage _full;
-	rpl::lifetime _subscription;
-	QImage _prepared;
-	bool _blurred = false;
+        const FullStoryId _id;
+        QImage _full;
+        rpl::lifetime _subscription;
+        QImage _prepared;
+        bool _blurred = false;
+        Fn<void()> _callback;
 
 };
 
@@ -215,41 +273,55 @@ std::shared_ptr<DynamicImage> PeerUserpic::clone() {
 QImage PeerUserpic::image(int size) {
 	Expects(_subscribed != nullptr);
 
-	const auto good = (_frame.width() == size * _frame.devicePixelRatio());
-	const auto key = _peer->userpicUniqueKey(_subscribed->view);
-	const auto paletteVersion = style::PaletteVersion();
-	if (!good
-		|| (_subscribed->paletteVersion != paletteVersion
-			&& _peer->useEmptyUserpic(_subscribed->view))
-		|| (_subscribed->key != key && !waitingUserpicLoad())) {
-		_subscribed->key = key;
-		_subscribed->paletteVersion = paletteVersion;
+        const auto good = (_frame.width() == size * _frame.devicePixelRatio());
+        const auto key = _peer->userpicUniqueKey(_subscribed->view);
+        const auto paletteVersion = style::PaletteVersion();
+        if (!good
+                || (_subscribed->paletteVersion != paletteVersion
+                        && _peer->useEmptyUserpic(_subscribed->view))
+                || (_subscribed->key != key && !waitingUserpicLoad())) {
+                _subscribed->key = key;
+                _subscribed->paletteVersion = paletteVersion;
 
-		const auto ratio = style::DevicePixelRatio();
-		if (!good) {
-			_frame = QImage(
-				QSize(size, size) * ratio,
-				QImage::Format_ARGB32_Premultiplied);
-			_frame.setDevicePixelRatio(ratio);
-		}
-		_frame.fill(Qt::transparent);
+                const auto cacheKey = CacheKey{
+                        QString("peer:%1:%2:%3:%4")
+                                .arg(_peer->id.value)
+                                .arg(size)
+                                .arg(_forceRound ? 1 : 0)
+                                .arg(paletteVersion),
+                        size };
+                const auto view = _subscribed->view;
+                loadCachedAsync(cacheKey, [=]() mutable {
+                        const auto ratio = style::DevicePixelRatio();
+                        QImage frame(
+                                QSize(size, size) * ratio,
+                                QImage::Format_ARGB32_Premultiplied);
+                        frame.setDevicePixelRatio(ratio);
+                        frame.fill(Qt::transparent);
 
-		auto p = Painter(&_frame);
-		auto &view = _subscribed->view;
-		if (!_forceRound) {
-			_peer->paintUserpic(p, view, 0, 0, size);
-		} else if (const auto cloud = _peer->userpicCloudImage(view)) {
-			const auto full = size * style::DevicePixelRatio();
-			Ui::ValidateUserpicCache(view, cloud, nullptr, full, false);
-			p.drawImage(QRect(0, 0, size, size), view.cached);
-		} else {
-			const auto full = size * style::DevicePixelRatio();
-			const auto r = full / 2.;
-			const auto empty = _peer->generateUserpicImage(view, full, r);
-			p.drawImage(QRect(0, 0, size, size), empty);
-		}
-	}
-	return _frame;
+                        auto v = view;
+                        auto p = Painter(&frame);
+                        if (!_forceRound) {
+                                _peer->paintUserpic(p, v, 0, 0, size);
+                        } else if (const auto cloud = _peer->userpicCloudImage(v)) {
+                                const auto full = size * style::DevicePixelRatio();
+                                Ui::ValidateUserpicCache(v, cloud, nullptr, full, false);
+                                p.drawImage(QRect(0, 0, size, size), v.cached);
+                        } else {
+                                const auto full = size * style::DevicePixelRatio();
+                                const auto r = full / 2.;
+                                const auto empty = _peer->generateUserpicImage(v, full, r);
+                                p.drawImage(QRect(0, 0, size, size), empty);
+                        }
+                        return frame;
+                }, [=](QImage img) {
+                        _frame = img;
+                        if (_subscribed) {
+                                _subscribed->callback();
+                        }
+                });
+        }
+        return _frame;
 }
 
 bool PeerUserpic::waitingUserpicLoad() const {
@@ -295,55 +367,76 @@ StoryThumbnail::StoryThumbnail(FullStoryId id)
 }
 
 QImage StoryThumbnail::image(int size) {
-	const auto ratio = style::DevicePixelRatio();
-	if (_prepared.width() != size * ratio) {
-		if (_full.isNull()) {
-			_prepared = QImage(
-				QSize(size, size) * ratio,
-				QImage::Format_ARGB32_Premultiplied);
-			_prepared.fill(Qt::black);
-		} else {
-			const auto width = _full.width();
-			const auto skip = std::max((_full.height() - width) / 2, 0);
-			_prepared = _full.copy(0, skip, width, width).scaled(
-				QSize(size, size) * ratio,
-				Qt::IgnoreAspectRatio,
-				Qt::SmoothTransformation);
-		}
-		_prepared = Images::Circle(std::move(_prepared));
-		_prepared.setDevicePixelRatio(ratio);
-	}
-	return _prepared;
+        const auto ratio = style::DevicePixelRatio();
+        if (_prepared.width() != size * ratio) {
+                const auto cacheKey = CacheKey{
+                        QString("story:%1:%2:%3")
+                                .arg(_id.peer.value)
+                                .arg(_id.story)
+                                .arg(size),
+                        size };
+                const auto full = _full;
+                loadCachedAsync(cacheKey, [=]() mutable {
+                        QImage result;
+                        if (full.isNull()) {
+                                result = QImage(
+                                        QSize(size, size) * ratio,
+                                        QImage::Format_ARGB32_Premultiplied);
+                                result.fill(Qt::black);
+                        } else {
+                                const auto width = full.width();
+                                const auto skip = std::max((full.height() - width) / 2, 0);
+                                result = full.copy(0, skip, width, width).scaled(
+                                        QSize(size, size) * ratio,
+                                        Qt::IgnoreAspectRatio,
+                                        Qt::SmoothTransformation);
+                        }
+                        result = Images::Circle(std::move(result));
+                        result.setDevicePixelRatio(ratio);
+                        return result;
+                }, [=](QImage img) {
+                        _prepared = img;
+                        if (_callback) {
+                                _callback();
+                        }
+                });
+        }
+        return _prepared;
 }
 
 void StoryThumbnail::subscribeToUpdates(Fn<void()> callback) {
-	_subscription.destroy();
-	if (!callback) {
-		clear();
-		return;
-	} else if (!_full.isNull() && !_blurred) {
-		return;
-	}
-	const auto thumbnail = loaded(_id);
-	if (const auto image = thumbnail.image) {
-		_full = image->original();
-	}
-	_blurred = thumbnail.blurred;
-	if (!_blurred) {
-		_prepared = QImage();
-	} else {
-		_subscription = session().downloaderTaskFinished(
-		) | rpl::filter([=] {
-			const auto thumbnail = loaded(_id);
-			if (!thumbnail.blurred) {
-				_full = thumbnail.image->original();
-				_prepared = QImage();
-				_blurred = false;
-				return true;
-			}
-			return false;
-		}) | rpl::take(1) | rpl::start_with_next(callback);
-	}
+        _subscription.destroy();
+        _callback = callback;
+        if (!_callback) {
+                clear();
+                return;
+        } else if (!_full.isNull() && !_blurred) {
+                return;
+        }
+        const auto thumbnail = loaded(_id);
+        if (const auto image = thumbnail.image) {
+                _full = image->original();
+        }
+        _blurred = thumbnail.blurred;
+        if (!_blurred) {
+                _prepared = QImage();
+        } else {
+                _subscription = session().downloaderTaskFinished(
+                ) | rpl::filter([=] {
+                        const auto thumbnail = loaded(_id);
+                        if (!thumbnail.blurred) {
+                                _full = thumbnail.image->original();
+                                _prepared = QImage();
+                                _blurred = false;
+                                return true;
+                        }
+                        return false;
+                }) | rpl::take(1) | rpl::start_with_next([=] {
+                        if (_callback) {
+                                _callback();
+                        }
+                });
+        }
 }
 
 FullStoryId StoryThumbnail::id() const {
