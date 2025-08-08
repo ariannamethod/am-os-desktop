@@ -9,54 +9,21 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 
 #include "ui/emoji_config.h"
 
-Qt::LayoutDirection gLangDir = Qt::LeftToRight;
+SettingsManager &SettingsManager::instance() {
+  static SettingsManager instance;
+  return instance;
+}
 
-bool gInstallBetaVersion = AppBetaVersion;
-uint64 gAlphaVersion = AppAlphaVersion;
-uint64 gRealAlphaVersion = AppAlphaVersion;
-QByteArray gAlphaPrivateKey;
-
-bool gManyInstance = false;
-QString gKeyFile;
-QString gWorkingDir;
-
-QStringList gSendPaths;
-QString gStartUrl;
-
-QString gDialogLastPath, gDialogHelperPath; // optimize QFileDialog
-
-bool gStartMinimized = false;
-bool gStartInTray = false;
-bool gAutoStart = false;
-bool gSendToMenu = false;
-LaunchMode gLaunchMode = LaunchModeNormal;
-bool gSeenTrayTooltip = false;
-bool gRestartingUpdate = false, gRestarting = false, gRestartingToSettings = false, gWriteProtected = false;
-bool gQuit = false;
-int32 gLastUpdateCheck = 0;
-bool gNoStartUpdate = false;
-bool gStartToSettings = false;
-bool gDebugMode = false;
-
-uint32 gConnectionsInSession = 1;
-
-QByteArray gLocalSalt;
-int gScreenScale = style::kScaleAuto;
-int gConfigScale = style::kScaleAuto;
-
-RecentStickerPreload gRecentStickersPreload;
-RecentStickerPack gRecentStickers;
-
-RecentHashtagPack gRecentWriteHashtags, gRecentSearchHashtags;
-
-RecentInlineBots gRecentInlineBots;
-
-bool gPasswordRecovered = false;
-int32 gPasscodeBadTries = 0;
-crl::time gPasscodeLastTry = 0;
-
-int gOtherOnline = 0;
-
-int32 gAutoDownloadPhoto = 0; // all auto download
-int32 gAutoDownloadAudio = 0;
-int32 gAutoDownloadGif = 0;
+SettingsManager::SettingsManager()
+    : gLangDir(Qt::LeftToRight), gInstallBetaVersion(AppBetaVersion),
+      gAlphaVersion(AppAlphaVersion), gRealAlphaVersion(AppAlphaVersion),
+      gManyInstance(false), gStartMinimized(false), gStartInTray(false),
+      gAutoStart(false), gSendToMenu(false), gLaunchMode(LaunchModeNormal),
+      gSeenTrayTooltip(false), gRestartingUpdate(false), gRestarting(false),
+      gRestartingToSettings(false), gWriteProtected(false), gQuit(false),
+      gLastUpdateCheck(0), gNoStartUpdate(false), gStartToSettings(false),
+      gDebugMode(false), gConnectionsInSession(1),
+      gScreenScale(style::kScaleAuto), gConfigScale(style::kScaleAuto),
+      gPasswordRecovered(false), gPasscodeBadTries(0), gPasscodeLastTry(0),
+      gOtherOnline(0), gAutoDownloadPhoto(0), gAutoDownloadAudio(0),
+      gAutoDownloadGif(0) {}
