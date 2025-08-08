@@ -1675,25 +1675,25 @@ bool PeerListContent::showRowMenu(
 	setContexted(Selected());
 	if (_pressButton != Qt::LeftButton) {
 		mousePressReleased(_pressButton);
-	}
+        }
 
-	if (highlightRow) {
-		row = getRow(index);
-	}
-	if (!row) {
-		return false;
-	}
+        if (highlightRow) {
+          row = getRow(index);
+        }
+        if (!row) {
+          return false;
+        }
 
-	_contextMenu = _controller->rowContextMenu(this, row);
-	const auto raw = _contextMenu.get();
-	if (!raw) {
-		return false;
-	}
+        _contextMenu = _controller->rowContextMenu(this, row);
+        const auto raw = _contextMenu.get();
+        if (!raw) {
+          return false;
+        }
 
-	if (highlightRow) {
-		setContexted({ index, false });
-	}
-	raw->setDestroyedCallback(crl::guard(
+        if (highlightRow) {
+          setContexted({index, false});
+        }
+        raw->setDestroyedCallback(crl::guard(
 		this,
 		[=] {
 			if (highlightRow) {
@@ -1831,34 +1831,40 @@ crl::time PeerListContent::paintRow(
 	p.setPen(anim::pen(st.nameFg, st.nameFgChecked, nameCheckedRatio));
 	name.drawLeftElided(p, namex, namey, namew, width());
 
-	p.setFont(st::contactsStatusFont);
-	if (row->isSearchResult()
-		&& !_mentionHighlight.isEmpty()
-		&& peer
-		&& peer->username().startsWith(
-			_mentionHighlight,
-			Qt::CaseInsensitive)) {
-		const auto username = peer->username();
-		const auto availableWidth = statusw;
-		auto highlightedPart = '@' + username.mid(0, _mentionHighlight.size());
-		auto grayedPart = username.mid(_mentionHighlight.size());
-		const auto highlightedWidth = st::contactsStatusFont->width(highlightedPart);
-		if (highlightedWidth >= availableWidth || grayedPart.isEmpty()) {
-			if (highlightedWidth > availableWidth) {
-				highlightedPart = st::contactsStatusFont->elided(highlightedPart, availableWidth);
-			}
-			p.setPen(st.statusFgActive);
-			p.drawTextLeft(statusx, statusy, width(), highlightedPart);
-		} else {
-			grayedPart = st::contactsStatusFont->elided(grayedPart, availableWidth - highlightedWidth);
-			p.setPen(st.statusFgActive);
-			p.drawTextLeft(statusx, statusy, width(), highlightedPart);
-			p.setPen(selected ? st.statusFgOver : st.statusFg);
-			p.drawTextLeft(statusx + highlightedWidth, statusy, width(), grayedPart);
-		}
-	} else {
-		row->paintStatusText(p, st, statusx, statusy, statusw, width(), selected);
-	}
+       p.setFont(st::contactsStatusFont);
+       if (row->isSearchResult() && !_mentionHighlight.isEmpty() && peer) {
+               const auto &usernames = peer->usernames();
+               auto username = QString();
+               for (const auto &u : usernames) {
+                       if (u.startsWith(_mentionHighlight, Qt::CaseInsensitive)) {
+                               username = u;
+                               break;
+                       }
+               }
+               if (!username.isEmpty()) {
+                       const auto availableWidth = statusw;
+                       auto highlightedPart = '@' + username.mid(0, _mentionHighlight.size());
+                       auto grayedPart = username.mid(_mentionHighlight.size());
+                       const auto highlightedWidth = st::contactsStatusFont->width(highlightedPart);
+                       if (highlightedWidth >= availableWidth || grayedPart.isEmpty()) {
+                               if (highlightedWidth > availableWidth) {
+                                       highlightedPart = st::contactsStatusFont->elided(highlightedPart, availableWidth);
+                               }
+                               p.setPen(st.statusFgActive);
+                               p.drawTextLeft(statusx, statusy, width(), highlightedPart);
+                       } else {
+                               grayedPart = st::contactsStatusFont->elided(grayedPart, availableWidth - highlightedWidth);
+                               p.setPen(st.statusFgActive);
+                               p.drawTextLeft(statusx, statusy, width(), highlightedPart);
+                               p.setPen(selected ? st.statusFgOver : st.statusFg);
+                               p.drawTextLeft(statusx + highlightedWidth, statusy, width(), grayedPart);
+                       }
+               } else {
+                       row->paintStatusText(p, st, statusx, statusy, statusw, width(), selected);
+               }
+       } else {
+               row->paintStatusText(p, st, statusx, statusy, statusw, width(), selected);
+       }
 
 	row->elementsPaint(
 		p,

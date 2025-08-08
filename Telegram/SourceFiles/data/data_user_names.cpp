@@ -38,32 +38,23 @@ void UsernamesInfo::setUsername(const QString &username) {
 }
 
 void UsernamesInfo::setUsernames(const Usernames &usernames) {
-	auto editableUsername = QString();
-	auto newUsernames = ranges::views::all(
-		usernames
-	) | ranges::views::filter([&](const Data::Username &username) {
-		if (username.editable) {
-			editableUsername = username.username;
-			return true;
-		}
-		return username.active;
-	}) | ranges::views::transform([](const Data::Username &username) {
-		return username.username;
-	}) | ranges::to_vector;
+  auto editableIndex = -1;
+  auto newUsernames =
+      ranges::views::all(usernames) |
+      ranges::views::transform(
+          [](const Data::Username &username) { return username.username; }) |
+      ranges::to_vector;
 
-	if (!ranges::equal(_usernames, newUsernames)) {
-		_usernames = std::move(newUsernames);
-	}
-	if (!editableUsername.isEmpty()) {
-		for (auto i = 0; i < _usernames.size(); i++) {
-			if (_usernames[i] == editableUsername) {
-				_indexEditableUsername = i;
-				break;
-			}
-		}
-	} else {
-		_indexEditableUsername = -1;
-	}
+  if (!ranges::equal(_usernames, newUsernames)) {
+    _usernames = std::move(newUsernames);
+  }
+  for (auto i = 0; i < usernames.size(); ++i) {
+    if (usernames[i].editable) {
+      editableIndex = i;
+      break;
+    }
+  }
+  _indexEditableUsername = editableIndex;
 }
 
 QString UsernamesInfo::username() const {

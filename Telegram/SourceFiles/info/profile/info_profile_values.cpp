@@ -51,13 +51,15 @@ auto PlainAboutValue(not_null<PeerData*> peer) {
 	});
 }
 
-auto PlainUsernameValue(not_null<PeerData*> peer) {
-	return rpl::merge(
-		peer->session().changes().peerFlagsValue(peer, UpdateFlag::Username),
-		peer->session().changes().peerFlagsValue(peer, UpdateFlag::Usernames)
-	) | rpl::map([=] {
-		return peer->username();
-	});
+auto PlainUsernameValue(not_null<PeerData *> peer) {
+  return rpl::merge(peer->session().changes().peerFlagsValue(
+                        peer, UpdateFlag::Username),
+                    peer->session().changes().peerFlagsValue(
+                        peer, UpdateFlag::Usernames)) |
+         rpl::map([=] {
+           const auto &list = peer->usernames();
+           return list.empty() ? QString() : list.front();
+         });
 }
 
 auto PlainPrimaryUsernameValue(not_null<PeerData*> peer) {

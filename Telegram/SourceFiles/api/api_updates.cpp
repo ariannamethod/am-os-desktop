@@ -1820,33 +1820,34 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 	case mtpc_updateWebPage: {
 		auto &d = update.c_updateWebPage();
 
-		// Update web page anyway.
-		session().data().processWebpage(d.vwebpage());
-		session().data().sendWebPageGamePollNotifications();
+                // Update web page anyway.
+                session().data().processWebpage(d.vwebpage());
+                session().data().sendWebPageGamePollNotifications();
 
-		updateAndApply(d.vpts().v, d.vpts_count().v, update);
-	} break;
+                updateAndApply(d.vpts().v, d.vpts_count().v, update);
+        } break;
 
-	case mtpc_updateChannelWebPage: {
-		auto &d = update.c_updateChannelWebPage();
+        case mtpc_updateChannelWebPage: {
+          auto &d = update.c_updateChannelWebPage();
 
-		// Update web page anyway.
-		session().data().processWebpage(d.vwebpage());
-		session().data().sendWebPageGamePollNotifications();
+          // Update web page anyway.
+          session().data().processWebpage(d.vwebpage());
+          session().data().sendWebPageGamePollNotifications();
 
-		auto channel = session().data().channelLoaded(d.vchannel_id());
-		if (channel && !_handlingChannelDifference) {
-			if (channel->ptsRequesting()) { // skip global updates while getting channel difference
-				return;
-			} else {
-				channel->ptsUpdateAndApply(d.vpts().v, d.vpts_count().v, update);
-			}
-		} else {
-			applyUpdateNoPtsCheck(update);
-		}
-	} break;
+          auto channel = session().data().channelLoaded(d.vchannel_id());
+          if (channel && !_handlingChannelDifference) {
+            if (channel->ptsRequesting()) { // skip global updates while getting
+                                            // channel difference
+              return;
+            } else {
+              channel->ptsUpdateAndApply(d.vpts().v, d.vpts_count().v, update);
+            }
+          } else {
+            applyUpdateNoPtsCheck(update);
+          }
+        } break;
 
-	case mtpc_updateMessagePoll: {
+        case mtpc_updateMessagePoll: {
 		session().data().applyUpdate(update.c_updateMessagePoll());
 	} break;
 
@@ -1930,18 +1931,22 @@ void Updates::feedUpdate(const MTPUpdate &update) {
 				? user->firstName
 				: qs(d.vfirst_name());
 			const auto last = contact ? user->lastName : qs(d.vlast_name());
-			// #TODO usernames
-			const auto username = d.vusernames().v.isEmpty()
-				? QString()
-				: qs(d.vusernames().v.front().data().vusername());
-			user->setName(
-				TextUtilities::SingleLine(first),
-				TextUtilities::SingleLine(last),
-				user->nameOrPhone,
-				TextUtilities::SingleLine(username));
-			user->setUsernames(Api::Usernames::FromTL(d.vusernames()));
-		}
-	} break;
+                       auto usernames = std::vector<QString>();
+                       usernames.reserve(d.vusernames().v.size());
+                       for (const auto &entry : d.vusernames().v) {
+                               usernames.push_back(qs(entry.data().vusername()));
+                       }
+                       const auto username = usernames.empty()
+                               ? QString()
+                               : usernames.front();
+                       user->setName(
+                               TextUtilities::SingleLine(first),
+                               TextUtilities::SingleLine(last),
+                               user->nameOrPhone,
+                               TextUtilities::SingleLine(username));
+                       user->setUsernames(Api::Usernames::FromTL(d.vusernames()));
+               }
+       } break;
 
 	case mtpc_updateUser: {
 		auto &d = update.c_updateUser();
