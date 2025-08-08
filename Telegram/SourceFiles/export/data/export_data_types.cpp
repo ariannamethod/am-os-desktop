@@ -727,7 +727,19 @@ Poll ParsePoll(const MTPDmessageMediaPoll &data) {
 			}
 		}
 	});
-	return result;
+        return result;
+}
+
+Dice ParseDice(const MTPDmessageMediaDice &data) {
+        return Dice{ ParseString(data.vemoticon()), data.vvalue().v };
+}
+
+StoryReference ParseStoryReference(const MTPDmessageMediaStory &data) {
+        auto result = StoryReference();
+        result.peerId = peerFromMTP(data.vpeer());
+        result.id = data.vid().v;
+        result.viaMention = data.is_via_mention();
+        return result;
 }
 
 GiveawayStart ParseGiveaway(const MTPDmessageMediaGiveaway &data) {
@@ -740,6 +752,47 @@ GiveawayStart ParseGiveaway(const MTPDmessageMediaGiveaway &data) {
 		result.channels.push_back(ChannelId(id));
 	}
 	return result;
+}
+
+GiveawayResults ParseGiveawayResults(
+                const MTPDmessageMediaGiveawayResults &data) {
+        auto result = GiveawayResults();
+        result.channelId = ChannelId(data.vchannel_id());
+        result.untilDate = data.vuntil_date().v;
+        result.launchId = data.vlaunch_msg_id().v;
+        result.additionalPeersCount = data.vadditional_peers_count().value_or_empty();
+        result.winnersCount = data.vwinners_count().v;
+        result.unclaimedCount = data.vunclaimed_count().v;
+        result.months = data.vmonths().v;
+        result.refunded = data.is_refunded();
+        result.all = !data.is_only_new_subscribers();
+        if (const auto prize = data.vprize_description()) {
+                result.prizeDescription = ParseString(*prize);
+        }
+        for (const auto &id : data.vwinners().v) {
+                result.winners.push_back(UserId(id.v));
+        }
+        return result;
+}
+
+WallPaper ParseWallPaper(
+                ParseMediaContext &context,
+                const MTPWallPaper &data,
+                const QString &folder,
+                TimeId date) {
+        auto result = WallPaper();
+        data.match([&](const MTPDwallPaper &wall) {
+                result.id = wall.vid().v;
+                result.slug = ParseString(wall.vslug());
+                result.document = ParseDocument(
+                        context,
+                        wall.vdocument(),
+                        folder,
+                        date);
+        }, [&](const MTPDwallPaperNoFile &wall) {
+                result.id = wall.vid().v;
+        });
+        return result;
 }
 
 UserpicsSlice ParseUserpicsSlice(
@@ -1239,17 +1292,17 @@ Media ParseMedia(
 		result.ttl = data.vperiod().v;
 	}, [&](const MTPDmessageMediaPoll &data) {
 		result.content = ParsePoll(data);
-	}, [](const MTPDmessageMediaDice &data) {
-		// #TODO dice
-	}, [](const MTPDmessageMediaStory &data) {
-		// #TODO export stories
-	}, [&](const MTPDmessageMediaGiveaway &data) {
-		result.content = ParseGiveaway(data);
-	}, [&](const MTPDmessageMediaGiveawayResults &data) {
-		// #TODO export giveaway
-	}, [&](const MTPDmessageMediaPaidMedia &data) {
-		result.content = ParsePaidMedia(context, data, folder, date);
-	}, [](const MTPDmessageMediaEmpty &data) {});
+       }, [&](const MTPDmessageMediaDice &data) {
+               result.content = ParseDice(data);
+       }, [&](const MTPDmessageMediaStory &data) {
+               result.content = ParseStoryReference(data);
+       }, [&](const MTPDmessageMediaGiveaway &data) {
+               result.content = ParseGiveaway(data);
+       }, [&](const MTPDmessageMediaGiveawayResults &data) {
+               result.content = ParseGiveawayResults(data);
+       }, [&](const MTPDmessageMediaPaidMedia &data) {
+               result.content = ParsePaidMedia(context, data, folder, date);
+       }, [](const MTPDmessageMediaEmpty &data) {});
 	return result;
 }
 
@@ -1478,17 +1531,21 @@ ServiceAction ParseServiceAction(
 			+ "photos/"
 			+ PreparePhotoFileName(++context.photos, date));
 		result.content = content;
-	}, [&](const MTPDmessageActionSetChatWallPaper &data) {
-		auto content = ActionSetChatWallPaper();
-		// #TODO wallpapers
-		content.same = data.is_same();
-		content.both = data.is_for_both();
-		result.content = content;
-	}, [&](const MTPDmessageActionRequestedPeer &data) {
-		auto content = ActionRequestedPeer();
-		for (const auto &peer : data.vpeers().v) {
-			content.peers.push_back(ParsePeerId(peer));
-		}
+       }, [&](const MTPDmessageActionSetChatWallPaper &data) {
+               auto content = ActionSetChatWallPaper();
+               content.paper = ParseWallPaper(
+                       context,
+                       data.vwallpaper(),
+                       mediaFolder + "wallpapers/",
+                       date);
+               content.same = data.is_same();
+               content.both = data.is_for_both();
+               result.content = content;
+       }, [&](const MTPDmessageActionRequestedPeer &data) {
+                auto content = ActionRequestedPeer();
+                for (const auto &peer : data.vpeers().v) {
+                        content.peers.push_back(ParsePeerId(peer));
+                }
 		content.buttonId = data.vbutton_id().v;
 		result.content = content;
 	}, [&](const MTPDmessageActionGiftCode &data) {
@@ -1540,11 +1597,11 @@ File &Message::file() {
 	} else if (const auto photo = std::get_if<ActionSuggestProfilePhoto>(
 			content)) {
 		return photo->photo.image.file;
-	} else if (const auto wallpaper = std::get_if<ActionSetChatWallPaper>(
-			content)) {
-		// #TODO wallpapers
-	}
-	return media.file();
+       } else if (const auto wallpaper = std::get_if<ActionSetChatWallPaper>(
+                       content)) {
+               return wallpaper->paper.document.file;
+       }
+       return media.file();
 }
 
 const File &Message::file() const {
@@ -1554,11 +1611,11 @@ const File &Message::file() const {
 	} else if (const auto photo = std::get_if<ActionSuggestProfilePhoto>(
 			content)) {
 		return photo->photo.image.file;
-	} else if (const auto wallpaper = std::get_if<ActionSetChatWallPaper>(
-			content)) {
-		// #TODO wallpapers
-	}
-	return media.file();
+       } else if (const auto wallpaper = std::get_if<ActionSetChatWallPaper>(
+                       content)) {
+               return wallpaper->paper.document.file;
+       }
+       return media.file();
 }
 
 Image &Message::thumb() {

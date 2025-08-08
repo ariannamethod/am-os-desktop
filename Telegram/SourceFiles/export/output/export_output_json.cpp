@@ -615,17 +615,26 @@ QByteArray SerializeMessage(
 		pushAction("giveaway_results");
 		push("winners", data.winners);
 		push("unclaimed", data.unclaimed);
-	}, [&](const ActionSetChatWallPaper &data) {
-		pushActor();
-		pushAction(data.same
-			? "set_same_chat_wallpaper"
-			: "set_chat_wallpaper");
-		pushReplyToMsgId("message_id");
-	}, [&](const ActionBoostApply &data) {
-		pushActor();
-		pushAction("boost_apply");
-		push("boosts", data.boosts);
-	}, [&](const ActionPaymentRefunded &data) {
+       }, [&](const ActionSetChatWallPaper &data) {
+               pushActor();
+               pushAction(data.same
+                       ? "set_same_chat_wallpaper"
+                       : "set_chat_wallpaper");
+               if (data.paper.id) {
+                       push("wallpaper_id", data.paper.id);
+               }
+               if (!data.paper.slug.isEmpty()) {
+                       push("wallpaper_slug", data.paper.slug);
+               }
+               if (data.paper.document.file.location) {
+                       pushPath(data.paper.document.file, "wallpaper_file");
+               }
+               pushReplyToMsgId("message_id");
+       }, [&](const ActionBoostApply &data) {
+               pushActor();
+               pushAction("boost_apply");
+               push("boosts", data.boosts);
+       }, [&](const ActionPaymentRefunded &data) {
 		pushAction("refunded_payment");
 		push("amount", data.amount);
 		push("currency", data.currency);
@@ -756,50 +765,81 @@ QByteArray SerializeMessage(
 				? NumberToString(data.receiptMsgId)
 				: QByteArray()) }
 		}));
-	}, [&](const Poll &data) {
-		context.nesting.push_back(Context::kObject);
-		const auto answers = ranges::views::all(
-			data.answers
-		) | ranges::views::transform([&](const Poll::Answer &answer) {
-			context.nesting.push_back(Context::kArray);
-			auto result = SerializeObject(context, {
-				{ "text", SerializeString(answer.text) },
-				{ "voters", NumberToString(answer.votes) },
-				{ "chosen", answer.my ? "true" : "false" },
-			});
-			context.nesting.pop_back();
-			return result;
-		}) | ranges::to_vector;
-		const auto serialized = SerializeArray(context, answers);
-		context.nesting.pop_back();
+       }, [&](const Poll &data) {
+               context.nesting.push_back(Context::kObject);
+               const auto answers = ranges::views::all(
+                       data.answers
+               ) | ranges::views::transform([&](const Poll::Answer &answer) {
+                       context.nesting.push_back(Context::kArray);
+                       auto result = SerializeObject(context, {
+                               { "text", SerializeString(answer.text) },
+                               { "voters", NumberToString(answer.votes) },
+                               { "chosen", answer.my ? "true" : "false" },
+                       });
+                       context.nesting.pop_back();
+                       return result;
+               }) | ranges::to_vector;
+               const auto serialized = SerializeArray(context, answers);
+               context.nesting.pop_back();
 
-		pushBare("poll", SerializeObject(context, {
-			{ "question", SerializeString(data.question) },
-			{ "closed", data.closed ? "true" : "false" },
-			{ "total_voters", NumberToString(data.totalVotes) },
-			{ "answers", serialized }
-		}));
-	}, [&](const GiveawayStart &data) {
-		context.nesting.push_back(Context::kObject);
-		const auto channels = ranges::views::all(
-			data.channels
-		) | ranges::views::transform([&](ChannelId id) {
-			return NumberToString(id.bare);
-		}) | ranges::to_vector;
-		const auto serialized = SerializeArray(context, channels);
-		context.nesting.pop_back();
+               pushBare("poll", SerializeObject(context, {
+                       { "question", SerializeString(data.question) },
+                       { "closed", data.closed ? "true" : "false" },
+                       { "total_voters", NumberToString(data.totalVotes) },
+                       { "answers", serialized }
+               }));
+       }, [&](const Dice &data) {
+               push("dice_emoji", data.emoji);
+               push("dice_value", data.value);
+       }, [&](const StoryReference &data) {
+               push("story_id", data.id);
+               push("story_peer_id", data.peerId);
+               push("story_via_mention", data.viaMention);
+       }, [&](const GiveawayStart &data) {
+               context.nesting.push_back(Context::kObject);
+               const auto channels = ranges::views::all(
+                       data.channels
+               ) | ranges::views::transform([&](ChannelId id) {
+                       return NumberToString(id.bare);
+               }) | ranges::to_vector;
+               const auto serialized = SerializeArray(context, channels);
+               context.nesting.pop_back();
 
-		push("giveaway_information", SerializeObject(context, {
-			{ "quantity", NumberToString(data.quantity) },
-			{ "months", NumberToString(data.months) },
-			{ "until_date", SerializeDate(data.untilDate) },
-			{ "channels", serialized },
-		}));
-	}, [&](const PaidMedia &data) {
-		push("paid_stars_amount", data.stars);
-	}, [](const UnsupportedMedia &data) {
-		Unexpected("Unsupported message.");
-	}, [](v::null_t) {});
+               push("giveaway_information", SerializeObject(context, {
+                       { "quantity", NumberToString(data.quantity) },
+                       { "months", NumberToString(data.months) },
+                       { "until_date", SerializeDate(data.untilDate) },
+                       { "channels", serialized },
+               }));
+       }, [&](const GiveawayResults &data) {
+               context.nesting.push_back(Context::kObject);
+               const auto winners = ranges::views::all(
+                       data.winners
+               ) | ranges::views::transform([&](UserId id) {
+                       return NumberToString(id.bare);
+               }) | ranges::to_vector;
+               const auto serialized = SerializeArray(context, winners);
+               context.nesting.pop_back();
+
+               push("giveaway_results", SerializeObject(context, {
+                       { "channel_id", NumberToString(data.channelId.bare) },
+                       { "launch_message_id", NumberToString(data.launchId) },
+                       { "until_date", SerializeDate(data.untilDate) },
+                       { "months", NumberToString(data.months) },
+                       { "winners_count", NumberToString(data.winnersCount) },
+                       { "unclaimed_count", NumberToString(data.unclaimedCount) },
+                       { "additional_peers_count", (data.additionalPeersCount
+                               ? NumberToString(data.additionalPeersCount)
+                               : QByteArray()) },
+                       { "refunded", data.refunded ? "true" : "false" },
+                       { "winners", serialized },
+                       { "prize_description", StringAllowNull(data.prizeDescription) },
+               }));
+       }, [&](const PaidMedia &data) {
+               push("paid_stars_amount", data.stars);
+       }, [](const UnsupportedMedia &data) {
+               Unexpected("Unsupported message.");
+       }, [](v::null_t) {});
 
 	pushBare("text", SerializeText(context, message.text));
 	pushBare("text_entities", SerializeText(context, message.text, true));
