@@ -196,47 +196,70 @@ rpl::producer<crl::time> AudioTrack::playPosition() {
 	Expects(_ready == nullptr);
 
 	if (!_subscription) {
-		_subscription = Media::Player::Updated(
-		) | rpl::start_with_next([=](const AudioMsgId &id) {
-			using State = Media::Player::State;
-			if (id != _audioId) {
-				return;
-			}
-			const auto state = Media::Player::mixer()->currentState(
-				_audioId.type());
-			if (state.id != _audioId) {
-				// #TODO streaming later muted by other
-				return;
-			} else switch (state.state) {
-			case State::Stopped:
-			case State::StoppedAtEnd:
-			case State::PausedAtEnd:
-				_playPosition.reset();
-				return;
-			case State::StoppedAtError:
-			case State::StoppedAtStart:
-				_error(Error::InvalidData);
-				return;
-			case State::Starting:
-			case State::Playing:
-			case State::Stopping:
-			case State::Pausing:
-			case State::Resuming:
-				if (state.waitingForData) {
-					_waitingForData.fire({});
-				}
-				_playPosition = std::clamp(
-					crl::time((state.position * 1000 + (state.frequency / 2))
-						/ state.frequency),
-					crl::time(0),
-					_stream.duration - 1);
-				return;
-			case State::Paused:
-				return;
-			}
-		});
-	}
-	return _playPosition.value();
+               _subscription = Media::Player::Updated(
+               ) | rpl::start_with_next([=](const AudioMsgId &id) {
+                       using State = Media::Player::State;
+                       if (id != _audioId) {
+                               return;
+                       }
+                       const auto state = Media::Player::mixer()->currentState(
+                               _audioId.type());
+                       if (state.id != _audioId) {
+                               return;
+                       } else switch (state.state) {
+                       case State::Stopped:
+                       case State::StoppedAtEnd:
+                       case State::PausedAtEnd:
+                               _playPosition.reset();
+                               return;
+                       case State::StoppedAtError:
+                       case State::StoppedAtStart:
+                               _error(Error::InvalidData);
+                               return;
+                       case State::Starting:
+                       case State::Playing:
+                       case State::Stopping:
+                       case State::Pausing:
+                       case State::Resuming:
+                               if (state.waitingForData) {
+                                       _waitingForData.fire({});
+                               }
+                               _playPosition = std::clamp(
+                                       crl::time((state.position * 1000 + (state.frequency / 2))
+                                               / state.frequency),
+                                       crl::time(0),
+                                       _stream.duration - 1);
+                               return;
+                       case State::Paused:
+                               return;
+                       }
+               });
+
+               Media::Player::ExternallyMuted(
+               ) | rpl::start_with_next([=](const AudioMsgId &id) {
+                       if (id != _audioId) {
+                               return;
+                       }
+                       const auto state = Media::Player::mixer()->currentState(
+                               _audioId.type());
+                       if (state.id == _audioId) {
+                               _playPosition = std::clamp(
+                                       crl::time((state.position * 1000 + (state.frequency / 2))
+                                               / state.frequency),
+                                       crl::time(0),
+                                       _stream.duration - 1);
+                       }
+                       pause(0);
+               }, _subscription);
+
+               Media::Player::ExternallyUnmuted(
+               ) | rpl::start_with_next([=](const AudioMsgId &id) {
+                       if (id == _audioId) {
+                               resume(0);
+                       }
+               }, _subscription);
+       }
+       return _playPosition.value();
 }
 
 AudioTrack::~AudioTrack() {

@@ -240,11 +240,21 @@ constexpr auto kCheckPlaybackPositionDelta = 2400LL; // update position called e
 constexpr auto kCheckFadingTimeout = crl::time(7); // 7ms
 
 rpl::event_stream<AudioMsgId> UpdatedStream;
+rpl::event_stream<AudioMsgId> ExternallyMutedStream;
+rpl::event_stream<AudioMsgId> ExternallyUnmutedStream;
 
 } // namespace
 
 rpl::producer<AudioMsgId> Updated() {
-	return UpdatedStream.events();
+        return UpdatedStream.events();
+}
+
+rpl::producer<AudioMsgId> ExternallyMuted() {
+       return ExternallyMutedStream.events();
+}
+
+rpl::producer<AudioMsgId> ExternallyUnmuted() {
+       return ExternallyUnmutedStream.events();
 }
 
 // Thread: Any. Must be locked: AudioMutex.
@@ -546,7 +556,7 @@ void Mixer::onError(const AudioMsgId &audio) {
 	if (type == AudioMsgId::Type::Voice) {
 		if (auto current = trackForType(type)) {
 			if (current->state.id == audio) {
-				unsuppressSong();
+                               notifySongUnsuppressed();
 			}
 		}
 	}
@@ -560,7 +570,7 @@ void Mixer::onStopped(const AudioMsgId &audio) {
 	if (type == AudioMsgId::Type::Voice) {
 		if (auto current = trackForType(type)) {
 			if (current->state.id == audio) {
-				unsuppressSong();
+                               notifySongUnsuppressed();
 			}
 		}
 	}
@@ -725,9 +735,9 @@ void Mixer::play(
 			: State::Playing;
 		current->loading = true;
 		loaderOnStart(current->state.id, positionMs);
-		if (type == AudioMsgId::Type::Voice) {
-			suppressSong();
-		}
+                 if (type == AudioMsgId::Type::Voice) {
+                        notifySongSuppressed();
+                 }
 	}
 	if (stopped) {
 		updated(stopped);
@@ -805,6 +815,24 @@ void Mixer::externalSoundProgress(const AudioMsgId &audio) {
 	}
 }
 
+void Mixer::notifySongSuppressed() {
+        if (const auto track = trackForType(AudioMsgId::Type::Song)) {
+                if (track->state.id) {
+                        ExternallyMutedStream.fire_copy(track->state.id);
+                }
+        }
+        suppressSong();
+}
+
+void Mixer::notifySongUnsuppressed() {
+        if (const auto track = trackForType(AudioMsgId::Type::Song)) {
+                if (track->state.id) {
+                        ExternallyUnmutedStream.fire_copy(track->state.id);
+                }
+        }
+        unsuppressSong();
+}
+
 bool Mixer::checkCurrentALError(AudioMsgId::Type type) {
 	if (!Audio::PlaybackErrorHappened()) return true;
 
@@ -834,7 +862,7 @@ void Mixer::pause(const AudioMsgId &audio, bool fast) {
 			track->state.state = fast ? State::Paused : State::Pausing;
 			resetFadeStartPosition(type);
 			if (type == AudioMsgId::Type::Voice) {
-				unsuppressSong();
+                               notifySongUnsuppressed();
 			}
 		} break;
 
@@ -912,7 +940,7 @@ void Mixer::resume(const AudioMsgId &audio, bool fast) {
 					if (!checkCurrentALError(type)) return;
 				}
 				if (type == AudioMsgId::Type::Voice) {
-					suppressSong();
+                                   notifySongSuppressed();
 				}
 			}
 		} break;
@@ -935,7 +963,7 @@ void Mixer::stop(const AudioMsgId &audio) {
 		current = audio;
 		fadedStop(type);
 		if (type == AudioMsgId::Type::Voice) {
-			unsuppressSong();
+                               notifySongUnsuppressed();
 		} else if (type == AudioMsgId::Type::Video) {
 			track->clear();
 			loaderOnCancel(audio);
@@ -961,7 +989,7 @@ void Mixer::stop(const AudioMsgId &audio, State state) {
 		current = audio;
 		setStoppedState(track, state);
 		if (type == AudioMsgId::Type::Voice) {
-			unsuppressSong();
+                               notifySongUnsuppressed();
 		} else if (type == AudioMsgId::Type::Video) {
 			track->clear();
 		}
