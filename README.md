@@ -1,85 +1,46 @@
-# [Telegram Desktop][telegram_desktop] – Official Messenger
+# Arianna Method Os Desktop-J
 
-This is the complete source code and the build instructions for the official [Telegram][telegram] messenger desktop client, based on the [Telegram API][telegram_api] and the [MTProto][telegram_proto] secure protocol.
+Arianna Method Os Desktop-J is a secure and versatile messaging application built for the Arianna Method operating environment.
 
-[![Version](https://badge.fury.io/gh/telegramdesktop%2Ftdesktop.svg)](https://github.com/telegramdesktop/tdesktop/releases)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Windows./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/MacOS./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
-[![Build Status](https://github.com/telegramdesktop/tdesktop/workflows/Linux./badge.svg)](https://github.com/telegramdesktop/tdesktop/actions)
+This project originates from the Telegram Desktop codebase but has been extensively adapted to showcase the Arianna Method approach to open, auditable software.
 
-[![Preview of Telegram Desktop][preview_image]][preview_image_url]
+The application provides a familiar chat interface while employing the MTProto protocol to ensure encrypted communication across devices.
 
-The source code is published under GPLv3 with OpenSSL exception, the license is available [here][license].
+Its architecture relies on cross-platform Qt technology, allowing consistent performance on Windows, macOS, and multiple Linux distributions.
 
-## Supported systems
+A dedicated Settings Manager centralizes configuration handling and introduces a modular structure for storing and retrieving preferences.
 
-The latest version is available for
+New parsers expand export capabilities by supporting dice, story, giveaway, and wallpaper media types in backup routines.
 
-* [Windows 7 and above (64 bit)](https://telegram.org/dl/desktop/win64) ([portable](https://telegram.org/dl/desktop/win64_portable))
-* [Windows 7 and above (32 bit)](https://telegram.org/dl/desktop/win) ([portable](https://telegram.org/dl/desktop/win_portable))
-* [macOS 10.13 and above](https://telegram.org/dl/desktop/mac)
-* [Linux static build for 64 bit](https://telegram.org/dl/desktop/linux)
-* [Snap](https://snapcraft.io/telegram-desktop)
-* [Flatpak](https://flathub.org/apps/details/org.telegram.desktop)
+The storage subsystem was refactored so account data uses instance members, reducing global state and improving maintainability.
 
-## Old system versions
+User interface components were refreshed to better match Arianna Method design guidelines, offering streamlined menus and adaptive layouts.
 
-Version **4.9.9** was the last that supports older systems
+Security enhancements include stricter OpenSSL usage and a commitment to upstreaming fixes that bolster MTProto compliance.
 
-* [macOS 10.12](https://updates.tdesktop.com/tmac/tsetup.4.9.9.dmg)
-* [Linux with glibc < 2.28 static build](https://updates.tdesktop.com/tlinux/tsetup.4.9.9.tar.xz)
+Performance tuning targets lower memory consumption through optimized caching and asynchronous disk operations.
 
-Version **2.4.4** was the last that supports older systems
+Networking code leverages WebRTC and custom transport settings to maintain efficient connectivity in diverse network conditions.
 
-* [OS X 10.10 and 10.11](https://updates.tdesktop.com/tosx/tsetup-osx.2.4.4.dmg)
-* [Linux static build for 32 bit](https://updates.tdesktop.com/tlinux32/tsetup32.2.4.4.tar.xz)
+The application remains compatible with the latest versions of Windows, macOS, and Linux, including distribution through Snap and Flatpak channels.
 
-Version **1.8.15** was the last that supports older systems
+Developers can build the project using the provided CMake scripts, with detailed instructions for each platform stored in the docs directory.
 
-* [Windows XP and Vista](https://updates.tdesktop.com/tsetup/tsetup.1.8.15.exe) ([portable](https://updates.tdesktop.com/tsetup/tportable.1.8.15.zip))
-* [OS X 10.8 and 10.9](https://updates.tdesktop.com/tmac/tsetup.1.8.15.dmg)
-* [OS X 10.6 and 10.7](https://updates.tdesktop.com/tmac32/tsetup32.1.8.15.dmg)
+The project links against third-party libraries such as Qt, OpenSSL, zlib, and FFmpeg, all governed by well-known open-source licenses.
 
-## Third-party
+Integration hooks allow Arianna Method modules to extend the client with experimental features or additional system services.
 
-* Qt 6 ([LGPL](http://doc.qt.io/qt-6/lgpl.html)) and Qt 5.15 ([LGPL](http://doc.qt.io/qt-5/lgpl.html)) slightly patched
-* OpenSSL 3.2.1 ([Apache License 2.0](https://www.openssl.org/source/apache-license-2.0.txt))
-* WebRTC ([New BSD License](https://github.com/desktop-app/tg_owt/blob/master/LICENSE))
-* zlib 1.2.11 ([zlib License](http://www.zlib.net/zlib_license.html))
-* LZMA SDK 9.20 ([public domain](http://www.7-zip.org/sdk.html))
-* liblzma ([public domain](http://tukaani.org/xz/))
-* Google Breakpad ([License](https://chromium.googlesource.com/breakpad/breakpad/+/master/LICENSE))
-* Google Crashpad ([Apache License 2.0](https://chromium.googlesource.com/crashpad/crashpad/+/master/LICENSE))
-* GYP ([BSD License](https://github.com/bnoordhuis/gyp/blob/master/LICENSE))
-* Ninja ([Apache License 2.0](https://github.com/ninja-build/ninja/blob/master/COPYING))
-* OpenAL Soft ([LGPL](https://github.com/kcat/openal-soft/blob/master/COPYING))
-* Opus codec ([BSD License](http://www.opus-codec.org/license/))
-* FFmpeg ([LGPL](https://www.ffmpeg.org/legal.html))
-* Guideline Support Library ([MIT License](https://github.com/Microsoft/GSL/blob/master/LICENSE))
-* Range-v3 ([Boost License](https://github.com/ericniebler/range-v3/blob/master/LICENSE.txt))
-* Open Sans font ([Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0.html))
-* Vazir font ([SIL Open Font License 1.1](https://github.com/rastikerdar/vazir-font/blob/master/OFL.txt))
-* Emoji alpha codes ([MIT License](https://github.com/emojione/emojione/blob/master/extras/alpha-codes/LICENSE.md))
-* xxHash ([BSD License](https://github.com/Cyan4973/xxHash/blob/dev/LICENSE))
-* QR Code generator ([MIT License](https://github.com/nayuki/QR-Code-generator#license))
-* CMake ([New BSD License](https://github.com/Kitware/CMake/blob/master/Copyright.txt))
-* Hunspell ([LGPL](https://github.com/hunspell/hunspell/blob/master/COPYING.LESSER))
+Localization support covers multiple languages, and the interface follows accessibility best practices to assist screen readers and keyboard navigation.
 
-## Build instructions
+Continuous integration pipelines lint the codebase and run unit tests to safeguard against regressions.
 
-* Windows [(32-bit)][win32] [(64-bit)][win64]
-* [macOS][mac]
-* [GNU/Linux using Docker][linux]
+Contributors follow a code review process that enforces style guidelines and ensures every change is traceable.
 
-[//]: # (LINKS)
-[telegram]: https://telegram.org
-[telegram_desktop]: https://desktop.telegram.org
-[telegram_api]: https://core.telegram.org
-[telegram_proto]: https://core.telegram.org/mtproto
-[license]: LICENSE
-[win32]: docs/building-win.md
-[win64]: docs/building-win-x64.md
-[mac]: docs/building-mac.md
-[linux]: docs/building-linux.md
-[preview_image]: https://github.com/telegramdesktop/tdesktop/blob/dev/docs/assets/preview.png "Preview of Telegram Desktop"
-[preview_image_url]: https://raw.githubusercontent.com/telegramdesktop/tdesktop/dev/docs/assets/preview.png
+Automatic update mechanisms fetch releases from the Arianna Method repository, keeping installations current with minimal user intervention.
+
+The project is distributed under the GPLv3 with an OpenSSL exception, while embedded third-party components retain their respective licenses.
+
+Future work includes refining plugin APIs, broadening export formats, and deepening integration with Arianna Method system tools.
+
+This effort builds upon the Telegram community's contributions and welcomes new collaborators to advance secure desktop messaging.
+
